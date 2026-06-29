@@ -1,0 +1,9 @@
+tldextract
+fastapi
+uvicorn
+pydantic
+
+httpx
+
+pydantic-settings
+python-dotenv
