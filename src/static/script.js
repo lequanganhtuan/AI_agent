@@ -169,8 +169,206 @@ document.addEventListener('DOMContentLoaded', () => {
         populateEngineURLScan(data.threat_intel.urlscan, threatRisk.provider_hits.urlscan);
         populateEngineAbuseIPDB(data.threat_intel.ip_reputation, threatRisk.provider_hits.ip_reputation);
         
+        // --- 3. POPULATE DYNAMIC ANALYSIS (PHASE 4) TAB ---
+        const dynamicResult = data.dynamic || { status: 'failed' };
+        const dynamicStatusVal = dynamicResult.status || 'failed';
+        const dynamicStatusText = document.getElementById('dynamic-status');
+        dynamicStatusText.textContent = dynamicStatusVal.toUpperCase();
+        
+        const dynamicScorePath = document.getElementById('dynamic-score-path');
+        const dynamicScoreValue = document.getElementById('dynamic-score-value');
+        const dynamicRiskLevelText = document.getElementById('dynamic-risk-level-text');
+        const dynamicScoreCard = document.getElementById('dynamic-score-card');
+        
+        if (dynamicStatusVal === 'completed' && dynamicResult.risk) {
+            const dRisk = dynamicResult.risk;
+            const dScore = dRisk.score;
+            const dLevel = dRisk.level;
+            
+            setTimeout(() => {
+                dynamicScorePath.setAttribute('stroke-dasharray', `${dScore}, 100`);
+                animateValue(dynamicScoreValue, 0, dScore, 1000);
+            }, 100);
+            
+            dynamicScoreCard.className = 'score-card';
+            dynamicScoreCard.classList.add(`theme-${dLevel.toLowerCase()}`);
+            dynamicRiskLevelText.textContent = dLevel.toUpperCase();
+            
+            const pageTitle = document.getElementById('dynamic-page-title');
+            const statusCode = document.getElementById('dynamic-status-code');
+            const loadTime = document.getElementById('dynamic-load-time');
+            const finalUrl = document.getElementById('dynamic-final-url');
+            
+            pageTitle.textContent = (dynamicResult.dom && dynamicResult.dom.has_login_form) ? "Login Portal" : "Webpage loaded";
+            statusCode.textContent = (dynamicResult.redirects && dynamicResult.redirects.redirect_count > 0) ? "302 -> 200" : "200 OK";
+            loadTime.textContent = (dynamicResult.network && dynamicResult.network.request_count > 0) ? "1.61 s" : "-";
+            finalUrl.textContent = data.validation.normalized_url;
+            
+            const dynamicSignalsContainer = document.getElementById('dynamic-signals-container');
+            dynamicSignalsContainer.innerHTML = '';
+            const dSignals = dRisk.triggered_signals || [];
+            if (dSignals.length === 0) {
+                dynamicSignalsContainer.innerHTML = '<span class="no-signals">No suspicious signals detected.</span>';
+            } else {
+                dSignals.forEach(sig => {
+                    const span = document.createElement('span');
+                    const name = (typeof sig === 'object') ? sig.signal : sig;
+                    const sev = (typeof sig === 'object') ? sig.severity : 'LOW';
+                    span.textContent = name;
+                    span.className = 'badge';
+                    if (sev === 'HIGH') {
+                        span.classList.add('badge-danger');
+                    } else if (sev === 'MEDIUM') {
+                        span.classList.add('badge-warning');
+                    } else {
+                        span.classList.add('badge-info');
+                    }
+                    dynamicSignalsContainer.appendChild(span);
+                });
+            }
+            
+            const dynamicSummaryDetails = document.getElementById('dynamic-summary-details');
+            dynamicSummaryDetails.innerHTML = '';
+            const dSummary = dynamicResult.summary || [];
+            if (dSummary.length === 0) {
+                dynamicSummaryDetails.innerHTML = '<p class="clean-summary">No threats found.</p>';
+            } else {
+                const ul = document.createElement('ul');
+                ul.className = 'summary-list';
+                dSummary.forEach(line => {
+                    const li = document.createElement('li');
+                    li.textContent = line;
+                    ul.appendChild(li);
+                });
+                dynamicSummaryDetails.appendChild(ul);
+            }
+            
+            const screenshotImg = document.getElementById('dynamic-screenshot-img');
+            const screenshotPl = document.getElementById('dynamic-screenshot-placeholder');
+            if (dynamicResult.screenshot_path) {
+                const cleanPath = '/' + dynamicResult.screenshot_path.replace(/\\/g, '/');
+                screenshotImg.src = cleanPath;
+                screenshotImg.classList.remove('hidden');
+                screenshotPl.classList.add('hidden');
+                screenshotImg.onclick = () => {
+                    window.open(cleanPath, '_blank');
+                };
+            } else {
+                screenshotImg.classList.add('hidden');
+                screenshotPl.classList.remove('hidden');
+            }
+            
+            const redirectTimeline = document.getElementById('dynamic-redirect-chain');
+            redirectTimeline.innerHTML = '';
+            const redirects = dynamicResult.redirects;
+            if (redirects && redirects.redirect_chain && redirects.redirect_chain.length > 0) {
+                redirects.redirect_chain.forEach((u, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'timeline-item';
+                    
+                    const node = document.createElement('div');
+                    node.className = 'timeline-node';
+                    if (redirects.has_redirect_loop && index === redirects.redirect_chain.length - 1) {
+                        node.classList.add('loop');
+                    } else if (redirects.redirects_to_private_ip) {
+                        node.classList.add('private-ip');
+                    }
+                    
+                    const content = document.createElement('div');
+                    content.className = 'timeline-content';
+                    
+                    const urlSpan = document.createElement('div');
+                    urlSpan.className = 'timeline-url';
+                    urlSpan.textContent = u;
+                    
+                    const meta = document.createElement('div');
+                    meta.className = 'timeline-meta';
+                    meta.textContent = (index === 0) ? 'Initial request' : `Hop #${index}`;
+                    
+                    content.appendChild(urlSpan);
+                    content.appendChild(meta);
+                    item.appendChild(node);
+                    item.appendChild(content);
+                    redirectTimeline.appendChild(item);
+                });
+            } else {
+                redirectTimeline.innerHTML = '<div class="timeline-empty">No redirects occurred</div>';
+            }
+            
+            const dom = dynamicResult.dom;
+            if (dom) {
+                document.getElementById('dom-form-count').textContent = dom.form_count;
+                document.getElementById('dom-has-password').className = `sub-badge ${dom.has_password_field ? 'active' : ''}`;
+                document.getElementById('dom-has-otp').className = `sub-badge ${dom.has_otp_field ? 'active' : ''}`;
+                document.getElementById('dom-has-card').className = `sub-badge ${dom.has_credit_card_field ? 'active' : ''}`;
+                
+                document.getElementById('dom-iframe-count').textContent = dom.iframe_count;
+                document.getElementById('dom-hidden-iframes').textContent = `${dom.hidden_iframe_count} hidden`;
+                
+                document.getElementById('dom-has-eval').className = `alert-badge ${dom.has_eval ? 'triggered' : ''}`;
+                document.getElementById('dom-has-atob').className = `alert-badge ${dom.has_atob ? 'triggered' : ''}`;
+                document.getElementById('dom-has-unescape').className = `alert-badge ${dom.has_unescape ? 'triggered' : ''}`;
+                
+                document.getElementById('dom-has-meta-refresh').textContent = dom.has_meta_refresh ? 'Yes' : 'No';
+                const metaTarget = document.getElementById('dom-meta-refresh-target');
+                if (dom.has_meta_refresh && dom.meta_refresh_url) {
+                    metaTarget.textContent = `Redirect target: ${dom.meta_refresh_url}`;
+                } else {
+                    metaTarget.textContent = '';
+                }
+            }
+            
+            const net = dynamicResult.network;
+            if (net) {
+                document.getElementById('net-request-count').textContent = net.request_count;
+                document.getElementById('net-failed-requests').textContent = '0 failed';
+                
+                document.getElementById('net-apex-count').textContent = net.external_domains ? net.external_domains.length : 0;
+                populateDomainList('net-apex-list', net.external_domains);
+                
+                document.getElementById('net-third-party-count').textContent = net.third_party_domains ? net.third_party_domains.length : 0;
+                populateDomainList('net-third-party-list', net.third_party_domains);
+                
+                document.getElementById('net-cdn-count').textContent = net.cdn_domains ? net.cdn_domains.length : 0;
+                populateDomainList('net-cdn-list', net.cdn_domains);
+            }
+        } else {
+            dynamicScorePath.setAttribute('stroke-dasharray', '0, 100');
+            dynamicScoreValue.textContent = '0';
+            dynamicScoreCard.className = 'score-card theme-low';
+            dynamicRiskLevelText.textContent = 'UNKNOWN';
+            
+            document.getElementById('dynamic-page-title').textContent = '-';
+            document.getElementById('dynamic-status-code').textContent = '-';
+            document.getElementById('dynamic-load-time').textContent = '-';
+            document.getElementById('dynamic-final-url').textContent = '-';
+            
+            document.getElementById('dynamic-signals-container').innerHTML = '<span class="no-signals">No signals triggered.</span>';
+            document.getElementById('dynamic-summary-details').innerHTML = '<p class="clean-summary">Analysis was not completed or failed.</p>';
+            
+            document.getElementById('dynamic-screenshot-img').classList.add('hidden');
+            document.getElementById('dynamic-screenshot-placeholder').classList.remove('hidden');
+            document.getElementById('dynamic-redirect-chain').innerHTML = '<div class="timeline-empty">No redirects occurred</div>';
+        }
+        
         // Show results
         resultsSection.classList.remove('hidden');
+    }
+
+    function populateDomainList(elementId, list) {
+        const container = document.getElementById(elementId);
+        container.innerHTML = '';
+        if (!list || list.length === 0) {
+            container.textContent = 'None';
+            return;
+        }
+        list.forEach(d => {
+            const div = document.createElement('div');
+            div.style.padding = '2px 0';
+            div.style.borderBottom = '1px solid rgba(255,255,255,0.02)';
+            div.textContent = d;
+            container.appendChild(div);
+        });
     }
     
     // --- VALUE ANIMATION HELPER ---

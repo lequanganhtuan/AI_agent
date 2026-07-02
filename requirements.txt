@@ -10,3 +10,4 @@ python-dotenv
 redis
 dnspython
 playwright
+beautifulsoup4

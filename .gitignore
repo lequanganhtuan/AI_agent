@@ -131,3 +131,11 @@ env/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Playwright dynamic screenshots
+artifacts/
+
+# Scratch keys testing
+api_key_test/
+
+
