@@ -39,6 +39,7 @@
                 <div class="tabs-container">
                     <button class="tab-btn active" data-tab="static-tab">Static Analysis</button>
                     <button class="tab-btn" data-tab="threat-tab">Threat Intelligence (Phase 3)</button>
+                    <button class="tab-btn" data-tab="dynamic-tab">Dynamic Analysis (Phase 4)</button>
                 </div>
 
                 <div id="static-tab" class="tab-content">
@@ -142,6 +143,152 @@
                                     <h5>AbuseIPDB</h5>
                                     <div class="status-pill status-clean" id="engine-abuseipdb-status">Clean</div>
                                     <p class="engine-sub" id="engine-abuseipdb-detail">Confidence score: 0%</p>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div id="dynamic-tab" class="tab-content hidden">
+                    <div class="threat-layout">
+                        <!-- Row 1: Score & Metrics -->
+                        <div class="threat-main-cards">
+                            <div class="score-card" id="dynamic-score-card">
+                                <div class="score-circle">
+                                    <svg viewBox="0 0 36 36" class="circular-chart">
+                                        <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                        <path class="circle" id="dynamic-score-path" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                        <text x="18" y="20.35" class="percentage" id="dynamic-score-value">0</text>
+                                    </svg>
+                                </div>
+                                <div class="risk-info">
+                                    <h2>Dynamic Risk</h2>
+                                    <h3 id="dynamic-risk-level-text" class="risk-level">Unknown</h3>
+                                    <div class="meta-row">
+                                        <span class="meta-label">Status:</span>
+                                        <span id="dynamic-status" class="meta-value">Pending</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="detail-card">
+                                <h4>Page Load Details</h4>
+                                <div class="metrics-list">
+                                    <div class="metric-row">
+                                        <span class="metric-label">Title:</span>
+                                        <span id="dynamic-page-title" class="metric-value">-</span>
+                                    </div>
+                                    <div class="metric-row">
+                                        <span class="metric-label">Status Code:</span>
+                                        <span id="dynamic-status-code" class="metric-value">-</span>
+                                    </div>
+                                    <div class="metric-row">
+                                        <span class="metric-label">Load Time:</span>
+                                        <span id="dynamic-load-time" class="metric-value">-</span>
+                                    </div>
+                                    <div class="metric-row">
+                                        <span class="metric-label">Final URL:</span>
+                                        <span id="dynamic-final-url" class="metric-value" style="word-break: break-all;">-</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Row 2: Explanations & Triggered Signals -->
+                        <div class="threat-main-cards" style="grid-template-columns: 1fr 1fr;">
+                            <div class="detail-card">
+                                <h4>Triggered Signals</h4>
+                                <div class="badge-container" id="dynamic-signals-container"></div>
+                            </div>
+                            <div class="detail-card">
+                                <h4>Analysis Summary</h4>
+                                <div class="summary-bullets" id="dynamic-summary-details"></div>
+                            </div>
+                        </div>
+
+                        <!-- Row 3: Screenshot & Redirect timeline -->
+                        <div class="dynamic-visual-grid">
+                            <div class="detail-card" style="display: flex; flex-direction: column;">
+                                <h4>Visual Evidence (Screenshot)</h4>
+                                <div class="screenshot-container">
+                                    <img id="dynamic-screenshot-img" src="" alt="Page load screenshot" class="screenshot-preview hidden">
+                                    <div id="dynamic-screenshot-placeholder" class="screenshot-placeholder">
+                                        <span>No Screenshot Captured</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="detail-card">
+                                <h4>Redirection Path</h4>
+                                <div class="timeline" id="dynamic-redirect-chain">
+                                    <div class="timeline-empty">No redirects occurred</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Row 4: DOM & Network Details -->
+                        <div class="dynamic-telemetry-grid">
+                            <div class="detail-card">
+                                <h4>DOM Analysis Findings</h4>
+                                <div class="findings-grid">
+                                    <div class="finding-item">
+                                        <span class="finding-title">Input Forms</span>
+                                        <span id="dom-form-count" class="finding-value">0</span>
+                                        <div class="finding-sub">
+                                            <span id="dom-has-password" class="sub-badge">Password</span>
+                                            <span id="dom-has-otp" class="sub-badge">OTP</span>
+                                            <span id="dom-has-card" class="sub-badge">Credit Card</span>
+                                        </div>
+                                    </div>
+                                    <div class="finding-item">
+                                        <span class="finding-title">Iframes</span>
+                                        <span id="dom-iframe-count" class="finding-value">0</span>
+                                        <div class="finding-sub">
+                                            <span id="dom-hidden-iframes" class="sub-text">0 hidden</span>
+                                        </div>
+                                    </div>
+                                    <div class="finding-item">
+                                        <span class="finding-title">JavaScript Alerts</span>
+                                        <div class="finding-sub" style="margin-top: 10px;">
+                                            <span id="dom-has-eval" class="alert-badge">eval()</span>
+                                            <span id="dom-has-atob" class="alert-badge">atob()</span>
+                                            <span id="dom-has-unescape" class="alert-badge">unescape()</span>
+                                        </div>
+                                    </div>
+                                    <div class="finding-item">
+                                        <span class="finding-title">Meta Redirects</span>
+                                        <span id="dom-has-meta-refresh" class="finding-value">No</span>
+                                        <p id="dom-meta-refresh-target" class="finding-sub-text" style="word-break: break-all; font-size: 11px;"></p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="detail-card">
+                                <h4>Network Traffic Telemetry</h4>
+                                <div class="findings-grid">
+                                    <div class="finding-item">
+                                        <span class="finding-title">Total Requests</span>
+                                        <span id="net-request-count" class="finding-value">0</span>
+                                        <div class="finding-sub">
+                                            <span id="net-failed-requests" class="sub-text">0 failed</span>
+                                        </div>
+                                    </div>
+                                    <div class="finding-item">
+                                        <span class="finding-title">Apex Domains</span>
+                                        <span id="net-apex-count" class="finding-value">0</span>
+                                        <div class="finding-sub" id="net-apex-list" style="max-height: 80px; overflow-y: auto; font-size: 11px; word-break: break-all;"></div>
+                                    </div>
+                                    <div class="finding-item">
+                                        <span class="finding-title">Third-Party Domains</span>
+                                        <span id="net-third-party-count" class="finding-value">0</span>
+                                        <div class="finding-sub" id="net-third-party-list" style="max-height: 80px; overflow-y: auto; font-size: 11px; word-break: break-all;"></div>
+                                    </div>
+                                    <div class="finding-item">
+                                        <span class="finding-title">CDN Usage</span>
+                                        <span id="net-cdn-count" class="finding-value">0</span>
+                                        <div class="finding-sub" id="net-cdn-list" style="max-height: 80px; overflow-y: auto; font-size: 11px; word-break: break-all;"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

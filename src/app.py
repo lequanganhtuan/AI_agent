@@ -1,5 +1,10 @@
 import os
+import sys
 import asyncio
+
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -19,6 +24,13 @@ static_dir = os.path.join(base_dir, "static")
 # Mount static files to serve CSS, JS, etc.
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+# Mount artifacts folder to serve dynamic screenshots
+workspace_dir = os.path.dirname(base_dir)
+artifacts_dir = os.path.join(workspace_dir, "artifacts")
+if not os.path.exists(artifacts_dir):
+    os.makedirs(artifacts_dir, exist_ok=True)
+app.mount("/artifacts", StaticFiles(directory=artifacts_dir), name="artifacts")
 
 class AnalyzeRequest(BaseModel):
     url: str
@@ -42,7 +54,8 @@ async def analyze_url(req: AnalyzeRequest):
                 ValidationResult, URLComponents, URLMetadata, StaticAnalysisResult, StaticRiskAnalysis,
                 ThreatIntelligenceResult, ThreatIntelligenceRisk, VirusTotalAnalysis,
                 GoogleSafeBrowsingAnalysis, URLScanAnalysis, URLHausAnalysis, AbuseIPDBAnalysis,
-                LexicalFeatures, BrandAnalysis, PatternAnalysis, TLDAnalysis, TyposquattingAnalysis
+                LexicalFeatures, BrandAnalysis, PatternAnalysis, TLDAnalysis, TyposquattingAnalysis,
+                DynamicAnalysisResult, DynamicRisk
             )
             
             val_res = ValidationResult(
@@ -207,7 +220,11 @@ async def analyze_url(req: AnalyzeRequest):
             return AnalysisContext(
                 validation=val_res,
                 static=static_res,
-                threat_intel=threat_intel
+                threat_intel=threat_intel,
+                dynamic=DynamicAnalysisResult(
+                    status="completed",
+                    risk=DynamicRisk(score=20, level="LOW", triggered_signals=[])
+                )
             )
 
         url_analyzer = URLAnalyzer()
@@ -227,12 +244,30 @@ async def analyze_url(req: AnalyzeRequest):
         
         static_result, threat_intel_result = await asyncio.gather(static_task, threat_task)
         
-        # Return unified AnalysisContext (FastAPI will serialize it using the "threat_intel" alias)
-        return AnalysisContext(
+        # Construct base context
+        context = AnalysisContext(
             validation=validation_result,
             static=static_result,
             threat_intel=threat_intel_result
         )
+
+        # 3. Sequential trigger of Dynamic Analysis (Phase 4)
+        from src.analyzers.url.dynamic_analysis.orchestrator import DynamicAnalysisOrchestrator
+        dynamic_orchestrator = DynamicAnalysisOrchestrator()
+        
+        def run_dynamic_in_thread(ctx):
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            if sys.platform == 'win32':
+                asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+            try:
+                loop.run_until_complete(dynamic_orchestrator.analyze(ctx))
+            finally:
+                loop.close()
+
+        await asyncio.to_thread(run_dynamic_in_thread, context)
+        
+        return context
         
     except Exception as e:
         import traceback

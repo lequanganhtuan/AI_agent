@@ -133,14 +133,12 @@ class URLHausAnalysis(BaseModel):
     payloads: list[dict[str, Any]] = Field(default_factory=list)
     error_message: str | None = None
 
-
 class PhishTankAnalysis(BaseModel):
     in_database: bool = False
     verified: bool = False
     verified_at: datetime | None = None
     phish_detail_url: str | None = None
     error_message: str | None = None
-
 
 class URLScanAnalysis(BaseModel):
     screenshot_url: str | None = None
@@ -197,6 +195,9 @@ class ThreatIntelligenceResult(BaseModel):
     risk: ThreatIntelligenceRisk
     urlhaus: URLHausAnalysis | None = None
 
+
+# PHASE 4
+
 class PageSnapshot(BaseModel):
     original_url: str
     final_url: str
@@ -204,15 +205,81 @@ class PageSnapshot(BaseModel):
     title: str
     html: str
     load_time_ms: float
+    redirect_chain: list[str] = Field(default_factory=list)
+
+class RedirectAnalysis(BaseModel):
+    redirect_count: int = 0
+    redirect_chain: list[str] = Field(default_factory=list)
+    has_redirect_loop: bool = False
+    has_cross_domain_redirect: bool = False
+    redirects_to_ip: bool = False
+    redirects_to_localhost: bool = False
+    redirects_to_private_ip: bool = False
+
+class DOMAnalysis(BaseModel):
+    form_count: int = 0
+    has_login_form: bool = False
+    has_password_field: bool = False
+    has_otp_field: bool = False
+    has_cccd_field: bool = False
+    has_credit_card_field: bool = False
+
+    iframe_count: int = 0
+    hidden_iframe_count: int = 0
+
+    has_meta_refresh: bool = False
+    meta_refresh_url: str | None = None
+
+    has_eval: bool = False
+    has_atob: bool = False
+    has_unescape: bool = False
+
+    inline_script_count: int = 0
+    external_script_count: int = 0
+    external_scripts: list[str] = Field(default_factory=list)
+
+    image_sources: list[str] = Field(default_factory=list)
+    favicon_url: str | None = None
+
+class NetworkAnalysis(BaseModel):
+    request_count: int = 0
+    response_count: int = 0
+    external_domains: list[str] = Field(default_factory=list)
+    third_party_domains: list[str] = Field(default_factory=list)
+    cdn_domains: list[str] = Field(default_factory=list)
+    api_endpoints: list[str] = Field(default_factory=list)
+    websocket_connections: list[str] = Field(default_factory=list)
+    failed_requests: list[str] = Field(default_factory=list)
+
+class ScreenshotResult(BaseModel):
+    screenshot_path: str
+
+class DynamicSignal(BaseModel):
+    signal: str
+    severity: str
+    confidence: float
+    evidence: str
+
+class DynamicRisk(BaseModel):
+    score: int = 0
+    level: str = "LOW"
+    triggered_signals: list[DynamicSignal] = Field(default_factory=list)
 
 class DynamicAnalysisResult(BaseModel):
-    model_config = ConfigDict(frozen=True)
     status: str = "pending"
+    screenshot_path: str | None = None
+    redirects: RedirectAnalysis | None = None
+    dom: DOMAnalysis | None = None
+    network: NetworkAnalysis | None = None
+    signals: list[DynamicSignal] = Field(default_factory=list)
+    risk: DynamicRisk | None = None
+    summary: list[str] = Field(default_factory=list)
 
 class AnalysisContext(BaseModel):
     validation: ValidationResult
     static: StaticAnalysisResult
     threat_intelligence: ThreatIntelligenceResult = Field(alias="threat_intel")
+    dynamic: DynamicAnalysisResult | None = None
 
     model_config = ConfigDict(
         populate_by_name=True
