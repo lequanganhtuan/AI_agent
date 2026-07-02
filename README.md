@@ -63,12 +63,69 @@ AI_agent/
 The system processes every URL through five progressive validation and detection phases:
 
 ```mermaid
-graph TD
-    A[Raw URL Input] --> Phase1[Phase 1: Preprocessing & DNS Validation]
-    Phase1 --> Phase2[Phase 2: Static Heuristics & Lexical Analysis]
-    Phase2 --> Phase3[Phase 3: Parallel Threat Intelligence]
-    Phase3 --> Phase4[Phase 4: Sandboxed Dynamic Browser Crawling]
-    Phase4 --> Phase5[Phase 5: Consolidated Score & Web UI Display]
+flowchart TD
+    subgraph P1[Phase 1: Preprocessing & DNS Validation]
+        A["Input URL"] --> B["validator.py<br>Validation"]
+        B -- Invalid --> Err["HTTP 400 Error"]
+        B -- Valid --> C["normalizer.py<br>Normalization"]
+        C --> D["tldextract<br>Component Parsing"]
+        D --> E["resolver.py<br>DNS Resolution"]
+        E --> E_Cache["cache.py<br>DNS Cache Check"]
+        E_Cache -- Hit --> F["Validation Result"]
+        E_Cache -- Miss --> DNS_Query["Network DNS Query"] --> Cache_Save["Save DNS Cache"] --> F
+    end
+
+    subgraph P2[Phase 2: Static Heuristics & Lexical Analysis]
+        F --> G["static_url_analyzer.py"]
+        G --> H1["lexical_analyzer.py<br>Entropy & Lengths"]
+        G --> H2["brand_analyzer.py<br>Brand Imitation"]
+        G --> H3["typosquatting_analyzer.py<br>Levenshtein Check"]
+        G --> H4["pattern_analyzer.py<br>Suspicious Keyword Patterns"]
+        G --> H5["tld_analyzer.py<br>High-Risk Registry Check"]
+        H1 & H2 & H3 & H4 & H5 --> I["static_risk_calculator.py"]
+        I --> J["Static Risk Score"]
+    end
+
+    subgraph P3[Phase 3: Parallel Threat Intelligence]
+        F --> K["orchestrator.py"]
+        K --> L_Cache["Redis Cache Check"]
+        L_Cache -- Hit --> M["Threat Intel Result"]
+        L_Cache -- Miss --> API_Lookup["Concurrent API Lookup"]
+        subgraph API_Providers[Third-Party Security Providers]
+            API_Lookup --> VT["VirusTotal"]
+            API_Lookup --> GSB["Google Safe Browsing"]
+            API_Lookup --> PT["PhishTank"]
+            API_Lookup --> UH["URLhaus"]
+            API_Lookup --> AB["AbuseIPDB"]
+            API_Lookup --> US["URLScan"]
+        end
+        VT & GSB & PT & UH & AB & US --> N["Aggregator &<br>Timeout Fallback"]
+        N --> Cache_Store["Store in Redis"] --> M
+    end
+
+    subgraph P4[Phase 4: Sandboxed Dynamic Analysis]
+        F --> O["dynamic_analysis/orchestrator.py"]
+        O --> P["browser_engine.py<br>Playwright Launch"]
+        P --> Q["network_analyzer.py<br>Start Traffic Capture"]
+        Q --> R["page_loader.py<br>Navigation & Load"]
+        R --> S["screenshot_collector.py<br>Full-Page Capture"]
+        R --> T["Post-Load Analysis"]
+        subgraph Evaluation[Evaluation Engines]
+            T --> T1["redirect_analyzer.py<br>Chains & Loops"]
+            T --> T2["dom_analyzer.py<br>Forms, Hidden Iframes, script tags"]
+            T --> T3["network_analyzer.py<br>APIs, WebSockets, CDNs"]
+        end
+        S & T1 & T2 & T3 --> U["risk & summary<br>Calculators"]
+        U --> V["Dynamic Risk Result"]
+    end
+
+    subgraph P5[Phase 5: Output & Dashboard Visualization]
+        J & M & V --> W["FastAPI app.py<br>AnalysisContext Composer"]
+        W --> X["Web UI Dashboard"]
+        X --> Y1["Interactive Tab Metrics"]
+        X --> Y2["Screenshot Preview"]
+        X --> Y3["Timeline Visualization"]
+    end
 ```
 
 ### Phase 1: Preprocessing & DNS Validation
