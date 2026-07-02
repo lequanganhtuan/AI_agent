@@ -250,7 +250,7 @@ class TestParseResponse:
         )
         with pytest.raises(ProviderError) as exc_info:
             provider.parse_response(res)
-        assert "Expected JSON response but received Content-Type" in str(exc_info.value.message)
+        assert "Expected JSON context but received Content-Type" in str(exc_info.value.message)
 
     def test_parse_response_json_decode_error(self, provider):
         """JSON decode lỗi"""

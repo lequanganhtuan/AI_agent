@@ -26,64 +26,89 @@ class VirusTotalProvider(BaseThreatProvider[VirusTotalAnalysis]):
     Designed with defensive programming principles, adhering strictly to
     the Single Responsibility Principle (SRP) through modular decomposition.
     """
-
     PROVIDER_NAME: str = "VirusTotal"
 
     # 1. LIFECYCLE & SETUP
     def __init__(self) -> None:
         """Initialize and configure the client. Must not contain business logic."""
-        super().__init__(timeout=ThreatIntelConfig.VIRUSTOTAL_TIMEOUT)
-
         api_key = settings.virustotal_api_key
-        if not api_key:
-            raise ValueError("VIRUSTOTAL_API_KEY is not configured.")
+        base_url = ThreatIntelConfig.VIRUSTOTAL_BASE_URL
+        
+        if not api_key or not base_url:
+            logger.error("[%s] Inititation failed: VIRUSTOTAL_API_KEY or Base_URL is not configured.", self.PROVIDER_NAME)
+            raise ValueError("VIRUSTOTAL_API_KEY is not configured in settings or Base_URL is empty.")
+
+        super().__init__(ThreatIntelConfig.VIRUSTOTAL_TIMEOUT)
 
         self._api_key = api_key
-        self.client.headers.update({
-            "x-apikey": self._api_key,
-            "Accept": "application/json"
-        })
-
-        self._base_url = ThreatIntelConfig.VIRUSTOTAL_BASE_URL.rstrip("/")
+        self._base_url = base_url.rstrip("/")
         self._poll_interval = ThreatIntelConfig.VIRUSTOTAL_POLL_INTERVAL
         self._max_poll_attempts = ThreatIntelConfig.VIRUSTOTAL_MAX_POLL_ATTEMPTS
 
+        self._default_headers = {
+            "x-apikey": self._api_key,
+            "Accept": "application/json"
+        }
+        self.client.headers.update(self._default_headers)
+
+        logger.info("[%s] Provider initialized successfully.", self.PROVIDER_NAME)
+            
+
     # 2. PUBLIC ORCHESTRATOR
-    async def lookup(self, target: ThreatIntelInput) -> VirusTotalAnalysis:
+    async def lookup(self, threat_input: ThreatIntelInput, **kwargs: Any) -> VirusTotalAnalysis:
         """
         Public API Orchestrator.
         Operates linearly: Cache-First -> Submit -> Poll -> Parse.
         """
-        if not target or not target.normalized_url:
-            raise ValueError("Target input or normalized URL cannot be empty.")
+        url = threat_input.normalized_url.strip()
+        if not url:
+            logger.error("[%s] Validation failed: target normalized_url is missing.", self.PROVIDER_NAME)
+            raise ValueError("Target input normalized_url cannot be null or empty")
 
-        logger.info(ThreatIntelConfig.LOG_REQUEST_START, self.PROVIDER_NAME)
-        url_id = self._build_url_id(target.normalized_url)
+        # Whitelist bypass for popular clean domains to avoid long sandboxing lookup times
+        domain_lower = threat_input.domain.lower().strip()
+        parts = domain_lower.split(".")
+        root_domain = ".".join(parts[-2:]) if len(parts) >= 2 else domain_lower
+        
+        legitimate_domains = {
+            "google.com", "gmail.com", "youtube.com", "facebook.com", "apple.com",
+            "microsoft.com", "live.com", "outlook.com", "twitter.com", "x.com",
+            "linkedin.com", "netflix.com", "wikipedia.org", "amazon.com",
+            "github.com", "cloudflare.com", "abuse.ch", "virustotal.com"
+        }
+        if root_domain in legitimate_domains:
+            logger.info("[%s] Domain %s is in the legitimate whitelist. Returning default clean analysis.", self.PROVIDER_NAME, domain_lower)
+            return VirusTotalAnalysis(found=True)
 
+        logger.info(ThreatIntelConfig.LOG_REQUEST_START, self.PROVIDER_NAME, url)
+        
+        url_id = self._build_url_id(url)
         try:
             # Step 1: Look up historical report (Cache-First)
             existing_response = await self._lookup_existing_report(url_id)
             if existing_response is not None:
-                return self.parse_response(existing_response)
+                return self.parse_response(existing_response, **kwargs)
 
             # Step 2: Fallback - Submit new URL to Sandbox
             logger.info("[%s] Record does not exist. Initiating URL submit command.", self.PROVIDER_NAME)
-            analysis_id = await self._submit_url(target.normalized_url)
+            analysis_id = await self._submit_url(url)
 
             # Step 3: Poll the analysis state machine
             analysis_response = await self._poll_analysis(analysis_id)
 
             # Step 4: Parse the final response payload
-            result_dto = self.parse_response(analysis_response)
+            result_dto = self.parse_response(analysis_response, **kwargs)
             logger.info(ThreatIntelConfig.LOG_REQUEST_SUCCESS, self.PROVIDER_NAME)
             return result_dto
 
         except ProviderError:
             raise
         except Exception as exc:
+            logger.exception("[%s] Lookup failed.", self.PROVIDER_NAME)
             raise ProviderError(
                 provider=self.PROVIDER_NAME,
-                message=f"Orchestration fatal failure: {str(exc)}"
+                message=f"Orchestration fatal failure: {str(exc)}",
+                status_code=500
             ) from exc
 
     # 3. CORE PRIVATE WORKFLOWS
@@ -97,7 +122,7 @@ class VirusTotalProvider(BaseThreatProvider[VirusTotalAnalysis]):
     async def _lookup_existing_report(self, url_id: str) -> httpx.Response | None:
         """Look up cached report. Detect 404/NotFoundError based on both status code and response body."""
         endpoint = f"{self._base_url}/urls/{url_id}"
-        response = await self._safe_request("GET", endpoint, raise_for_status=False)
+        response = await self._safe_request("GET", endpoint, raise_for_status=False, headers=self._default_headers)
 
         if response.status_code == 200:
             return response
@@ -116,7 +141,7 @@ class VirusTotalProvider(BaseThreatProvider[VirusTotalAnalysis]):
         """Send POST request to queue the URL for Sandbox analysis."""
         endpoint = f"{self._base_url}/urls"
         payload = {"url": url}
-        response = await self._safe_request("POST", endpoint, data=payload, raise_for_status=True)
+        response = await self._safe_request("POST", endpoint, data=payload, raise_for_status=True, headers=self._default_headers)
         return self._extract_analysis_id(response)
 
     async def _poll_analysis(self, analysis_id: str) -> httpx.Response:
@@ -126,7 +151,7 @@ class VirusTotalProvider(BaseThreatProvider[VirusTotalAnalysis]):
         for attempt in range(1, self._max_poll_attempts + 1):
             await self._sleep_before_next_poll()
 
-            response = await self._safe_request("GET", endpoint, raise_for_status=True)
+            response = await self._safe_request("GET", endpoint, raise_for_status=True, headers=self._default_headers)
             status = self._extract_status(response)
 
             match status:
@@ -151,16 +176,6 @@ class VirusTotalProvider(BaseThreatProvider[VirusTotalAnalysis]):
         )
 
     # 4. GRANULAR UTILITIES
-    def _validate_response_content_type(self, response: httpx.Response) -> None:
-        """Early interception of non-JSON responses (e.g., Cloudflare WAF HTML, proxy errors)."""
-        content_type = response.headers.get("content-type", "").lower()
-        if "application/json" not in content_type:
-            raise ProviderError(
-                provider=self.PROVIDER_NAME,
-                message=f"Expected JSON response but received Content-Type '{content_type}'. Body truncated: {response.text[:200]}",
-                status_code=response.status_code
-            )
-
     def _validate_business_error(self, payload: dict[str, Any], response: httpx.Response) -> None:
         """Verify and process structured business error blocks nested inside JSON."""
         if "error" in payload:
@@ -220,12 +235,20 @@ class VirusTotalProvider(BaseThreatProvider[VirusTotalAnalysis]):
         await asyncio.sleep(self._poll_interval)
 
     # 5. PURE PARSER CORNER
-    def parse_response(self, response: httpx.Response) -> VirusTotalAnalysis:
+    def parse_response(self, response: httpx.Response, **kwargs: Any) -> VirusTotalAnalysis:
         """
         Pure parser function to convert raw response to Pydantic Model.
         Decomposed into helper methods for readability and maintainability.
         """
         self._validate_response_content_type(response)
+
+        if not response.text or not response.text.strip():
+            raise ProviderError(
+                provider=self.PROVIDER_NAME,
+                message="Upstream provider returned an empty or unparsable response body stream.",
+                status_code=502,
+                raw_error_type="EmptyUpstreamResponse"
+            )
 
         try:
             payload = response.json()

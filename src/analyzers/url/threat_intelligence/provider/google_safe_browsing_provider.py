@@ -23,47 +23,45 @@ class GoogleSafeBrowsingProvider(BaseThreatProvider[GoogleSafeBrowsingAnalysis])
     # 1. __init__()
     def __init__(self) -> None:
         """Khởi tạo Provider, cấu hình thông số qua lớp cha và nạp API Key."""
-        if not settings.google_safe_browsing_api_key:
-            logger.error("[%s] Initialization failed: Missing API Key.", self.PROVIDER_NAME)
-            raise ValueError("GOOGLE_SAFE_BROWSING_API_KEY is not configured in settings")
+        api_key = settings.google_safe_browsing_api_key
+        base_url = ThreatIntelConfig.GOOGLE_SAFE_BROWSING_BASE_URL
+        endpoint_path = ThreatIntelConfig.GOOGLE_SAFE_BROWSING_LOOKUP_ENDPOINT
+
+        if not api_key:
+            logger.error("[%s] Initialization failed: API key not configured.", self.PROVIDER_NAME)
+            raise ValueError("GOOGLE_SAFE_BROWSING_API_KEY is not configured in settings.")
+
+        if not base_url or not endpoint_path:
+            logger.error("[%s] Initialization failed: Base URL or endpoint is not configured.", self.PROVIDER_NAME)
+            raise ValueError("GOOGLE_SAFE_BROWSING_API_KEY or Base URL is not configured in settings.")
             
-        super().__init__(timeout=ThreatIntelConfig.GOOGLE_SAFE_BROWSING_TIMEOUT_SECONDS)
+        super().__init__(ThreatIntelConfig.GOOGLE_SAFE_BROWSING_TIMEOUT_SECONDS)
         
-        self._api_key = settings.google_safe_browsing_api_key
-        
-        self._base_url = (
-            f"{ThreatIntelConfig.GOOGLE_SAFE_BROWSING_BASE_URL}"
-            f"{ThreatIntelConfig.GOOGLE_SAFE_BROWSING_LOOKUP_ENDPOINT}"
-        )
-        
+        self._api_key = api_key
+        self._base_url = f"{base_url.rstrip('/')}{endpoint_path}"
         self._client_id = "ai-threat-intelligence-pipeline"
         self._client_version = "1.0.0"
         
         logger.info("[%s] Provider initialized successfully in enterprise state.", self.PROVIDER_NAME)
 
     # 2. lookup() - Public Orchestrator
-    async def lookup(self, threat_input: ThreatIntelInput) -> GoogleSafeBrowsingAnalysis:
-        if not threat_input.normalized_url:
+    async def lookup(self, threat_input: ThreatIntelInput, **kwargs: Any) -> GoogleSafeBrowsingAnalysis:
+        url = threat_input.normalized_url.strip()
+        if not url:
             logger.error("[%s] Validation failed: target normalized_url is missing.", self.PROVIDER_NAME)
             raise ValueError("Target input normalized_url cannot be null or empty")
 
-        logger.info(
-            "[%s] Sending request to Google Safe Browsing. Domain: %s", 
-            self.PROVIDER_NAME, 
-            threat_input.domain
-        )
+        logger.info(ThreatIntelConfig.LOG_REQUEST_START, self.PROVIDER_NAME, url)
 
         try:    
             payload = self._build_request_payload(threat_input)
-            response = await self._post_lookup(payload)
-            
-            logger.info("[%s] Lookup completed.", self.PROVIDER_NAME)
-            return self.parse_response(response)
-            
+            analysis_response = await self._post_lookup(payload)
+
+            result_dto = self.parse_response(analysis_response, **kwargs)
+            logger.info(ThreatIntelConfig.LOG_REQUEST_SUCCESS, self.PROVIDER_NAME)
+            return result_dto
         except ProviderError:
-            # Cho phép lỗi bay thẳng lên trên, giữ nguyên trạng thái gốc (429 giữ nguyên 429)
             raise
-            
         except Exception as exc:
             logger.exception("[%s] Lookup failed.", self.PROVIDER_NAME)
             raise ProviderError(
@@ -106,9 +104,17 @@ class GoogleSafeBrowsingProvider(BaseThreatProvider[GoogleSafeBrowsingAnalysis])
         )
 
     # 5. parse_response()
-    def parse_response(self, response: httpx.Response) -> GoogleSafeBrowsingAnalysis:
+    def parse_response(self, response: httpx.Response, **kwargs: Any) -> GoogleSafeBrowsingAnalysis:
         """Chuyển đổi HTTP Response sang Model nghiệp vụ và phòng vệ ngoại lệ."""
         self._validate_response_content_type(response)
+
+        if not response.text or not response.text.strip():
+            raise ProviderError(
+                provider=self.PROVIDER_NAME,
+                message="Upstream provider returned an empty or unparsable response body stream.",
+                status_code=502,
+                raw_error_type="EmptyUpstreamResponse"
+            )
         
         try:
             data = response.json()
@@ -142,6 +148,7 @@ class GoogleSafeBrowsingProvider(BaseThreatProvider[GoogleSafeBrowsingAnalysis])
                 provider=self.PROVIDER_NAME,
                 message=f"Failed to parse Google Safe Browsing payload: {exc}",
                 status_code=response.status_code,
+                raw_error_type="ParsingError"
             ) from exc
 
     # Helper Trích Xuất Đối Tượng Đầu Tiên (Tối Ưu Đồng Bộ Tái Sử Dụng)
@@ -163,15 +170,15 @@ class GoogleSafeBrowsingProvider(BaseThreatProvider[GoogleSafeBrowsingAnalysis])
     # 6. _extract_matches()
     def _extract_matches(self, data: dict[str, Any]) -> list[dict[str, Any]]:
         """Bóc tách danh sách các matches được trả về."""
-        matches = data.get("matches")
-        if matches is None:
+        if "matches" not in data or data["matches"] is None:
             return []
-
+        matches = data["matches"]
         if not isinstance(matches, list):
             raise ProviderError(
                 provider=self.PROVIDER_NAME,
-                message="Schema validation failed: 'matches' attribute must be a list structure",
-                status_code=502
+                message="Google Safe Browsing matches must be a list structure",
+                status_code=502,
+                raw_error_type="InvalidResponseStructure"
             )
         return matches
 
@@ -227,22 +234,11 @@ class GoogleSafeBrowsingProvider(BaseThreatProvider[GoogleSafeBrowsingAnalysis])
                 status_code=code
             )
 
-        if "matches" in data:
-            matches = data.get("matches")
-            if not isinstance(matches, list):
-                logger.error("[%s] Schema violation: 'matches' field is not a list.", self.PROVIDER_NAME)
-                raise ProviderError(
-                    provider=self.PROVIDER_NAME,
-                    message="Schema validation failed: 'matches' attribute must be a list structure",
-                    status_code=502
-                )
-
-    def _validate_response_content_type(self, response: httpx.Response) -> None:
-        """Kiểm tra xem content-type của response có chứa application/json không (chặn WAF/proxy HTML)."""
-        content_type = response.headers.get("content-type", "").lower()
-        if "application/json" not in content_type:
+        if "matches" in data and not isinstance(data.get("matches"), list):
+            logger.error("[%s] Schema violation: 'matches' field is not a list.", self.PROVIDER_NAME)
             raise ProviderError(
                 provider=self.PROVIDER_NAME,
-                message=f"Expected JSON response but received Content-Type '{content_type}'",
-                status_code=response.status_code
-            )
+                message="Schema validation failed: 'matches' attribute must be a list structure",
+                status_code=502
+            )
+
