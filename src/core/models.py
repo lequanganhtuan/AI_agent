@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic import BaseModel
 
 class URLComponents(BaseModel):
@@ -109,13 +110,28 @@ class VirusTotalAnalysis(BaseModel):
     categories: list[str] = Field(default_factory=list)
     scan_date: datetime | None = None
     found: bool = False
+    error_message: str | None = None
 
+
+from typing import Any
 
 class GoogleSafeBrowsingAnalysis(BaseModel):
     threat_found: bool = False
     threat_type: str | None = None
     platform_type: str | None = None
     cache_duration: str | None = None
+    error_message: str | None = None
+
+
+class URLHausAnalysis(BaseModel):
+    query_status: str
+    url_status: str | None = None
+    threat: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    reporter: str | None = None
+    first_seen: datetime | None = None
+    payloads: list[dict[str, Any]] = Field(default_factory=list)
+    error_message: str | None = None
 
 
 class PhishTankAnalysis(BaseModel):
@@ -123,6 +139,7 @@ class PhishTankAnalysis(BaseModel):
     verified: bool = False
     verified_at: datetime | None = None
     phish_detail_url: str | None = None
+    error_message: str | None = None
 
 
 class URLScanAnalysis(BaseModel):
@@ -135,52 +152,70 @@ class URLScanAnalysis(BaseModel):
     malicious_score: int = 0
     tags: list[str] = Field(default_factory=list)
     scan_id: str | None = None
+    form_signals: dict[str, Any] = Field(default_factory=dict)
+    hosting_intel: dict[str, Any] = Field(default_factory=dict)
+    tech_stack: list[str] = Field(default_factory=list)
+    network_risk_score: float = 0.0
+    form_risk_score: float = 0.0
+    hosting_risk_score: float = 0.0
+    urlscan_global_score: float = 0.0
+    final_local_score: float = 0.0
+    error_message: str | None = None
+
+class AbuseIPDBAnalysis(BaseModel):
+    ip_address: str = ""
+    abuse_score: int = 0
+    total_reports: int = 0
+    usage_type: Optional[str] = None
+    country_code: Optional[str] = None
+    domain: Optional[str] = None
+    confidence: int = 100
+    error_message: str | None = None
 
 
-class WhoisAnalysis(BaseModel):
-    domain_age_days: int = 0
-    creation_date: datetime | None = None
-    expiry_date: datetime | None = None
-    registrar: str | None = None
-    is_private_registration: bool = False
-
-
-class SSLAnalysis(BaseModel):
-    is_valid: bool = False
-    issuer: str | None = None
-    expiry_date: datetime | None = None
-    time_until_expiration_days: int = 0
-    protocol_version: str | None = None
-
-
-class IPReputationAnalysis(BaseModel):
-    fraud_score: int = 0
-    is_proxy: bool = False
-    is_vpn: bool = False
-    is_tor: bool = False
-    is_datacenter: bool = False
-    country_code: str | None = None
-    isp: str | None = None
-    abuse_velocity: str | None = None
+class ThreatSignal(BaseModel):
+    code: str
+    severity: str
+    provider: str
 
 
 class ThreatIntelligenceRisk(BaseModel):
     score: int = 0
     risk_level: str = "low"
-    blacklist_hit_count: int = 0
-    threat_categories: list[str] = Field(default_factory=list)
-    summary: list[str] = Field(default_factory=list)
+    summary: str = ""
+    triggered_signals: list[str] = Field(default_factory=list)
+    provider_hits: dict[str, bool] = Field(default_factory=dict)
+    confidence: float = 1.0
 
 
 class ThreatIntelligenceResult(BaseModel):
     model_config = ConfigDict(frozen=True)
     virustotal: VirusTotalAnalysis
     google_safe_browsing: GoogleSafeBrowsingAnalysis
-    phishtank: PhishTankAnalysis
     urlscan: URLScanAnalysis
-    whois: WhoisAnalysis
-    ssl: SSLAnalysis
-    ip_reputation: IPReputationAnalysis
+    ip_reputation: AbuseIPDBAnalysis
     risk: ThreatIntelligenceRisk
+    urlhaus: URLHausAnalysis | None = None
+
+class PageSnapshot(BaseModel):
+    original_url: str
+    final_url: str
+    status_code: int
+    title: str
+    html: str
+    load_time_ms: float
+
+class DynamicAnalysisResult(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    status: str = "pending"
+
+class AnalysisContext(BaseModel):
+    validation: ValidationResult
+    static: StaticAnalysisResult
+    threat_intelligence: ThreatIntelligenceResult = Field(alias="threat_intel")
+
+    model_config = ConfigDict(
+        populate_by_name=True
+    )
 
     

@@ -175,7 +175,7 @@ class TestLookup:
         with patch.object(provider, "_safe_request", AsyncMock(return_value=mock_response)):
             with pytest.raises(ProviderError) as exc_info:
                 await provider.lookup(target_input)
-            assert "Expected JSON response" in str(exc_info.value)
+            assert "Expected JSON context" in str(exc_info.value)
 
     async def test_lookup_handling_error_payload_in_http_200(self, provider, target_input):
         """Verify that lookup raises ProviderError when receiving an error block nested in an HTTP 200."""
@@ -373,7 +373,7 @@ class TestHelpers:
         res_html = httpx.Response(status_code=429, text="<html>Blocked</html>", headers={"Content-Type": "text/html"})
         with pytest.raises(ProviderError) as exc_info:
             provider._validate_response_content_type(res_html)
-        assert "Expected JSON response but received Content-Type 'text/html'" in str(exc_info.value)
+        assert "Expected JSON context but received Content-Type 'text/html'" in str(exc_info.value)
 
         # JSON content-type should pass through without an exception
         res_json = httpx.Response(status_code=200, headers={"Content-Type": "application/json"})

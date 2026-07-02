@@ -58,9 +58,14 @@ class Settings(BaseSettings):
         alias="URLSCAN_API_KEY",
     )
 
-    # IPQualityScore (https://www.ipqualityscore.com/user/api-keys)
-    ipqs_api_key: str = Field(
-        alias="IPQS_API_KEY",
+    # URLHaus (https://urlhaus.abuse.ch/)
+    urlhaus_api_key: str = Field(
+        alias="URLHAUS_API_KEY",
+    )
+
+    # AbuseIPDB (https://www.abuseipdb.com/account/api/keys)
+    abuseipdb_api_key: str = Field(
+        alias="ABUSEIPDB_API_KEY",
     )
 
     # OpenAI (Future Phase)

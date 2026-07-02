@@ -1,4 +1,5 @@
 import os
+import asyncio
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -6,7 +7,8 @@ from pydantic import BaseModel
 
 from src.analyzers.url.preprocessing.url_analyzer import URLAnalyzer
 from src.analyzers.url.static.static_url_analyzer import StaticURLAnalyzer
-from src.core.models import StaticAnalysisResult
+from src.analyzers.url.threat_intelligence.orchestrator import ThreatIntelOrchestrator
+from src.core.models import StaticAnalysisResult, AnalysisContext
 
 app = FastAPI(title="URL Analyzer Web Demo")
 
@@ -32,8 +34,185 @@ async def read_root():
 @app.post("/api/analyze")
 async def analyze_url(req: AnalyzeRequest):
     try:
+        url_lower = req.url.lower().strip()
+        
+        # Mock scenario interception for Web UI demonstration
+        if "scenario" in url_lower and ".test" in url_lower:
+            from src.core.models import (
+                ValidationResult, URLComponents, URLMetadata, StaticAnalysisResult, StaticRiskAnalysis,
+                ThreatIntelligenceResult, ThreatIntelligenceRisk, VirusTotalAnalysis,
+                GoogleSafeBrowsingAnalysis, URLScanAnalysis, URLHausAnalysis, AbuseIPDBAnalysis,
+                LexicalFeatures, BrandAnalysis, PatternAnalysis, TLDAnalysis, TyposquattingAnalysis
+            )
+            
+            val_res = ValidationResult(
+                valid=True,
+                normalized_url=req.url,
+                components=URLComponents(
+                    scheme="http",
+                    subdomain="",
+                    domain="scenario-simulation",
+                    tld="test",
+                    path="",
+                    params={},
+                    full_domain="scenario-simulation.test"
+                ),
+                metadata=URLMetadata(is_ip=False, is_private_ip=False, is_punycode=False, contains_unicode=False),
+                cache_key="MOCK-SCENARIO-TRACE"
+            )
+            
+            static_res = StaticAnalysisResult(
+                lexical=LexicalFeatures(
+                    url_length=len(req.url),
+                    root_domain_length=19,
+                    full_domain_length=23,
+                    subdomain_count=0,
+                    url_special_char_count=0,
+                    digit_ratio_domain=0.0,
+                    domain_entropy=3.0,
+                    hyphen_count=0,
+                    url_depth=0,
+                    query_parameter_count=0,
+                    max_path_segment_length=0,
+                    longest_token_length=0,
+                    consecutive_digit_count=0
+                ),
+                brand=BrandAnalysis(),
+                pattern=PatternAnalysis(),
+                tld=TLDAnalysis(),
+                typosquatting=TyposquattingAnalysis(),
+                risk=StaticRiskAnalysis(
+                    score=20,
+                    risk_level="low",
+                    summary=["Local lexical checks passed.", "Demonstration environment warning."]
+                )
+            )
+            
+            if "scenario1" in url_lower:
+                # Scenario 1: Clean
+                threat_intel = ThreatIntelligenceResult(
+                    virustotal=VirusTotalAnalysis(),
+                    google_safe_browsing=GoogleSafeBrowsingAnalysis(),
+                    urlscan=URLScanAnalysis(),
+                    urlhaus=URLHausAnalysis(query_status="no_match"),
+                    ip_reputation=AbuseIPDBAnalysis(abuse_score=0, total_reports=0),
+                    risk=ThreatIntelligenceRisk(score=0, risk_level="low", summary="No security threats or suspicious behaviors were detected.", confidence=1.0)
+                )
+            elif "scenario2" in url_lower:
+                # Scenario 2: Blacklist
+                threat_intel = ThreatIntelligenceResult(
+                    virustotal=VirusTotalAnalysis(malicious=4, total_engines=65),
+                    google_safe_browsing=GoogleSafeBrowsingAnalysis(threat_found=True, threat_type="MALWARE"),
+                    urlscan=URLScanAnalysis(),
+                    urlhaus=URLHausAnalysis(query_status="no_match"),
+                    ip_reputation=AbuseIPDBAnalysis(abuse_score=92, total_reports=12),
+                    risk=ThreatIntelligenceRisk(
+                        score=40,
+                        risk_level="medium",
+                        summary="✓ VirusTotal detected 4 malicious engines.\n✓ Google Safe Browsing identified this URL as MALWARE.",
+                        triggered_signals=["BLACKLIST_MATCH", "GOOGLE_BLACKLIST", "VT_CONFIRMED_MALICIOUS"],
+                        provider_hits={"virustotal": True, "google_safe_browsing": True, "urlhaus": False, "ip_reputation": False, "urlscan": False},
+                        confidence=1.0
+                    )
+                )
+            elif "scenario3" in url_lower:
+                # Scenario 3: Behavioral Form Phishing
+                threat_intel = ThreatIntelligenceResult(
+                    virustotal=VirusTotalAnalysis(),
+                    google_safe_browsing=GoogleSafeBrowsingAnalysis(),
+                    urlscan=URLScanAnalysis(form_risk_score=0.85, redirect_count=2),
+                    urlhaus=URLHausAnalysis(query_status="no_match"),
+                    ip_reputation=AbuseIPDBAnalysis(abuse_score=0, total_reports=0),
+                    risk=ThreatIntelligenceRisk(
+                        score=25,
+                        risk_level="medium",
+                        summary="✓ URLScan observed suspicious behavior.",
+                        triggered_signals=["PHISHING_FORM_DETECTED"],
+                        provider_hits={"virustotal": False, "google_safe_browsing": False, "urlhaus": False, "ip_reputation": False, "urlscan": True},
+                        confidence=1.0
+                    )
+                )
+            elif "scenario4" in url_lower:
+                # Scenario 4: IP Proxy Reputation
+                threat_intel = ThreatIntelligenceResult(
+                    virustotal=VirusTotalAnalysis(),
+                    google_safe_browsing=GoogleSafeBrowsingAnalysis(),
+                    urlscan=URLScanAnalysis(),
+                    urlhaus=URLHausAnalysis(query_status="no_match"),
+                    ip_reputation=AbuseIPDBAnalysis(abuse_score=92, total_reports=12),
+                    risk=ThreatIntelligenceRisk(
+                        score=15,
+                        risk_level="medium",
+                        summary="✓ AbuseIPDB reported an abuse confidence score of 92%.",
+                        triggered_signals=["ABUSEIPDB_HIGH_CONFIDENCE_MALICIOUS"],
+                        provider_hits={"virustotal": False, "google_safe_browsing": False, "urlhaus": False, "ip_reputation": True, "urlscan": False},
+                        confidence=1.0
+                    )
+                )
+            elif "scenario5" in url_lower:
+                # Scenario 5: Timeout Failure Isolation
+                threat_intel = ThreatIntelligenceResult(
+                    virustotal=VirusTotalAnalysis(),
+                    google_safe_browsing=GoogleSafeBrowsingAnalysis(),
+                    urlscan=URLScanAnalysis(),
+                    urlhaus=URLHausAnalysis(query_status="no_match"),
+                    ip_reputation=AbuseIPDBAnalysis(),
+                    risk=ThreatIntelligenceRisk(
+                        score=0,
+                        risk_level="low",
+                        summary="No security threats or suspicious behaviors were detected.",
+                        triggered_signals=[],
+                        provider_hits={"virustotal": False, "google_safe_browsing": False, "urlhaus": False, "ip_reputation": False, "urlscan": False},
+                        confidence=0.8
+                    )
+                )
+            elif "scenario6" in url_lower:
+                # Scenario 6: Cache Hit
+                threat_intel = ThreatIntelligenceResult(
+                    virustotal=VirusTotalAnalysis(malicious=5, total_engines=70),
+                    google_safe_browsing=GoogleSafeBrowsingAnalysis(threat_found=True, threat_type="MALWARE"),
+                    urlscan=URLScanAnalysis(),
+                    urlhaus=URLHausAnalysis(query_status="no_match"),
+                    ip_reputation=AbuseIPDBAnalysis(),
+                    risk=ThreatIntelligenceRisk(
+                        score=40,
+                        risk_level="medium",
+                        summary="Retrieved from Cache.\n✓ VirusTotal detected 5 malicious engines.\n✓ Google blacklist matched.",
+                        triggered_signals=["BLACKLIST_MATCH", "VT_CONFIRMED_MALICIOUS", "GOOGLE_BLACKLIST"],
+                        provider_hits={"virustotal": True, "google_safe_browsing": True, "urlhaus": False, "ip_reputation": False, "urlscan": False},
+                        confidence=1.0
+                    )
+                )
+            else:
+                # Scenario 7: All Threats Compounded
+                threat_intel = ThreatIntelligenceResult(
+                    virustotal=VirusTotalAnalysis(malicious=6),
+                    google_safe_browsing=GoogleSafeBrowsingAnalysis(threat_found=True, threat_type="PHISHING"),
+                    urlscan=URLScanAnalysis(form_risk_score=0.9, redirect_count=4),
+                    urlhaus=URLHausAnalysis(query_status="ok", url_status="online"),
+                    ip_reputation=AbuseIPDBAnalysis(abuse_score=98, total_reports=24, usage_type="Data Center/Web Hosting"),
+                    risk=ThreatIntelligenceRisk(
+                        score=80,
+                        risk_level="high",
+                        summary="✓ VirusTotal detected 6 malicious engines.\n✓ Google Safe Browsing identified this URL as PHISHING.\n✓ URLHaus reported this URL as malicious.\n✓ URLScan observed suspicious behavior.\n✓ AbuseIPDB reported an abuse confidence score of 98%.",
+                        triggered_signals=[
+                            "ABUSEIPDB_HIGH_CONFIDENCE_MALICIOUS", "BLACKLIST_MATCH", "EXCESSIVE_REDIRECTS",
+                            "GOOGLE_BLACKLIST", "PHISHING_FORM_DETECTED", "URLHAUS_ACTIVE_MALWARE", "VT_CONFIRMED_MALICIOUS"
+                        ],
+                        provider_hits={"virustotal": True, "google_safe_browsing": True, "urlhaus": True, "ip_reputation": True, "urlscan": True},
+                        confidence=1.0
+                    )
+                )
+            
+            return AnalysisContext(
+                validation=val_res,
+                static=static_res,
+                threat_intel=threat_intel
+            )
+
         url_analyzer = URLAnalyzer()
         static_analyzer = StaticURLAnalyzer()
+        orchestrator = ThreatIntelOrchestrator()
         
         # 1. Preprocessing
         validation_result = url_analyzer.analyze(req.url)
@@ -42,14 +221,18 @@ async def analyze_url(req: AnalyzeRequest):
             # If validation fails, return an error
             raise HTTPException(status_code=400, detail=validation_result.error_message or "URL validation failed.")
             
-        # 2. Static Analysis
-        static_result = static_analyzer.analyze(validation_result)
+        # 2. Parallel execution of Static Analysis (Phase 2) and Threat Intelligence (Phase 3)
+        static_task = asyncio.to_thread(static_analyzer.analyze, validation_result)
+        threat_task = orchestrator.analyze_url(validation_result)
         
-        # We can return the model directly, FastAPI will serialize it
-        return {
-            "validation": validation_result.model_dump(),
-            "static": static_result.model_dump()
-        }
+        static_result, threat_intel_result = await asyncio.gather(static_task, threat_task)
+        
+        # Return unified AnalysisContext (FastAPI will serialize it using the "threat_intel" alias)
+        return AnalysisContext(
+            validation=validation_result,
+            static=static_result,
+            threat_intel=threat_intel_result
+        )
         
     except Exception as e:
         import traceback
