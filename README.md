@@ -84,6 +84,8 @@ Checks properties of the URL itself without making network calls to external sit
 *   **TLD Check**: Matches top-level domains against list of high-risk spam or malware registrars.
 *   **Static Risk Score**: Computes a rules-based static risk score from these local signals.
 
+![Static Heuristics Analysis](artifacts/phase2_static.png)
+
 ### Phase 3: Parallel Threat Intelligence
 Aggregates live reputation data from multiple providers concurrently:
 *   **VirusTotal**: Checks detection engines and file-reputation counts.
@@ -93,12 +95,16 @@ Aggregates live reputation data from multiple providers concurrently:
 *   **URLScan**: Identifies behavioral and site-level hazards.
 *   **Error Tolerance**: If a single API provider experiences network timeouts or quota exhaustion, it is gracefully isolated. The engine continues processing and adjusts the overall **Confidence Score** proportional to the succeeded lookups.
 
+![Threat Intelligence Analysis](artifacts/phase3_threat.png)
+
 ### Phase 4: Sandboxed Dynamic Browser Crawling
 A live headless crawler visits the site inside a secure Playwright environment:
 *   **Redirect Chains**: Captures all HTTP and meta-refresh redirects, tracking cross-domain jumps and loops.
 *   **DOM Auditing**: Scans for hidden iframes, JavaScript obfuscation tags (such as excessive `eval()`, `atob()`, or `unescape()`), and forms gathering sensitive fields (e.g. Passwords, OTPs, Identity Cards, Credit Cards).
 *   **Network Sniffing**: Inspects API endpoints, WebSocket activities, and CDN connections during loading.
 *   **Visual Evidence**: Captures full-page screenshots for security operators to audit.
+
+![Dynamic Sandbox Analysis](artifacts/phase4_dynamic.png)
 
 ### Phase 5: Web UI Dashboard
 A rich dashboard displays the results:
