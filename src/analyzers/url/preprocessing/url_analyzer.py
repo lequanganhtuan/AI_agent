@@ -34,6 +34,11 @@ class URLAnalyzer():
         Validation -> Normalization -> Feature Extraction -> Output Compilation.
         """
         try:
+            # Preprocess URL to automatically prepend a scheme if missing
+            url = url.strip()
+            if url and "://" not in url:
+                url = f"http://{url}"
+
             # Run core structural and constraint checks
             self.validator.validate(url)
             # Clean and sanitize the URL string

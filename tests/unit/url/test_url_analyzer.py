@@ -58,3 +58,17 @@ def test_analyzer_ssrf_attempt(analyzer):
     assert result.valid is False
     assert result.error_code == ValidationErrorCode.SSRF_ATTEMPT.value
     assert "loopback" in result.error_message.lower() or "prohibited" in result.error_message.lower()
+
+
+def test_analyzer_naked_domain(analyzer):
+    """
+    Case 4: Naked domain without scheme is preprocessed successfully.
+    """
+    url = "789win.com"
+    result = analyzer.analyze(url)
+    
+    assert result.valid is True
+    assert result.normalized_url == "http://789win.com"
+    assert result.components.scheme == "http"
+    assert result.components.domain == "789win"
+    assert result.components.tld == "com"
