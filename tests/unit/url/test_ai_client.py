@@ -1,7 +1,8 @@
 import pytest
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
-import openai
+import base64
+from unittest.mock import AsyncMock, MagicMock
+from google.genai.errors import APIError
 
 from src.analyzers.url.ai_content_analysis.models import PromptRequest, LLMOutput
 from src.analyzers.url.ai_content_analysis.exceptions import (
@@ -10,8 +11,8 @@ from src.analyzers.url.ai_content_analysis.exceptions import (
     LLMTimeoutError,
     LLMRateLimitError,
 )
-from src.analyzers.url.ai_content_analysis.client.openai_client import OpenAIClient
-from src.analyzers.url.ai_content_analysis.client.retry import execute_with_retry, MAX_RETRIES
+from src.analyzers.url.ai_content_analysis.client.gemini_client import GeminiClient
+from src.analyzers.url.ai_content_analysis.client.retry import execute_with_retry
 
 
 # ─── Retry Module Tests ──────────────────────────────────────────────────────
@@ -72,22 +73,24 @@ class TestRetry:
         assert call_count == 1  # Should NOT retry
 
 
-# ─── OpenAI Client Payload Assembly & Configuration Tests ───────────────────────
+# ─── Gemini Client Payload Assembly & Configuration Tests ───────────────────────
 
-class TestOpenAIClientPayload:
+class TestGeminiClientPayload:
     @pytest.mark.anyio
     async def test_generate_text_only(self):
-        client = OpenAIClient(api_key="test_key")
+        client = GeminiClient(api_key="test_key")
         
-        # Mock completions endpoint
+        # Mock generate content response
         mock_response = MagicMock()
-        mock_choice = MagicMock()
-        mock_choice.message.content = "Analysis Result String"
-        mock_response.choices = [mock_choice]
-        mock_response.usage = MagicMock(prompt_tokens=10, completion_tokens=5, total_tokens=15)
+        mock_response.text = "Analysis Result String"
+        mock_response.usage_metadata = MagicMock(
+            prompt_token_count=10,
+            response_token_count=5,
+            total_token_count=15
+        )
         
-        mock_create = AsyncMock(return_value=mock_response)
-        client.client.chat.completions.create = mock_create
+        mock_generate = AsyncMock(return_value=mock_response)
+        client.client.aio.models.generate_content = mock_generate
         
         req = PromptRequest(
             system_prompt="system instructions",
@@ -100,65 +103,60 @@ class TestOpenAIClientPayload:
         assert result == "Analysis Result String"
         
         # Verify calls and mapping
-        mock_create.assert_called_once()
-        kwargs = mock_create.call_args[1]
-        assert kwargs["temperature"] == 0.0
-        assert len(kwargs["messages"]) == 2
-        assert kwargs["messages"][0] == {"role": "system", "content": "system instructions"}
-        assert kwargs["messages"][1] == {"role": "user", "content": "user instructions"}
+        mock_generate.assert_called_once()
+        kwargs = mock_generate.call_args[1]
+        assert kwargs["contents"] == ["user instructions"]
+        assert kwargs["config"].system_instruction == "system instructions"
+        assert kwargs["config"].temperature == 0.0
 
     @pytest.mark.anyio
     async def test_generate_multimodal_vision(self):
-        client = OpenAIClient(api_key="test_key")
+        client = GeminiClient(api_key="test_key")
         
         mock_response = MagicMock()
-        mock_choice = MagicMock()
-        mock_choice.message.content = "Vision Result String"
-        mock_response.choices = [mock_choice]
-        mock_response.usage = None
+        mock_response.text = "Vision Result String"
+        mock_response.usage_metadata = None
         
-        mock_create = AsyncMock(return_value=mock_response)
-        client.client.chat.completions.create = mock_create
+        mock_generate = AsyncMock(return_value=mock_response)
+        client.client.aio.models.generate_content = mock_generate
         
+        # YmFzZTY0cGF5bG9hZA== is 'base64payload' in base64
         req = PromptRequest(
             system_prompt="system instructions",
             user_prompt="user instructions",
             response_schema=LLMOutput,
             vision_enabled=True,
-            screenshot_path="base64payload"
+            screenshot_path="YmFzZTY0cGF5bG9hZA=="
         )
         
         result = await client.generate(req)
         assert result == "Vision Result String"
         
-        # Verify message assembly structure
-        kwargs = mock_create.call_args[1]
-        assert len(kwargs["messages"]) == 2
-        assert kwargs["messages"][1]["role"] == "user"
-        content = kwargs["messages"][1]["content"]
-        assert len(content) == 2
-        assert content[0] == {"type": "text", "text": "user instructions"}
-        assert content[1] == {
-            "type": "image_url",
-            "image_url": {
-                "url": "data:image/png;base64,base64payload"
-            }
-        }
+        # Verify multimodal contents mapping
+        mock_generate.assert_called_once()
+        kwargs = mock_generate.call_args[1]
+        assert len(kwargs["contents"]) == 2
+        assert kwargs["contents"][0] == "user instructions"
+        
+        # Extract binary data mapping from the part object
+        part = kwargs["contents"][1]
+        assert part.inline_data.data == b"base64payload"
+        assert part.inline_data.mime_type == "image/png"
 
 
-# ─── OpenAI Client Error Handling & Translation Tests ─────────────────────────
+# ─── Gemini Client Error Handling & Translation Tests ─────────────────────────
 
-class TestOpenAIClientErrorHandling:
+class TestGeminiClientErrorHandling:
     @pytest.mark.anyio
     async def test_rate_limit_error_translation(self):
-        client = OpenAIClient(api_key="test_key")
+        client = GeminiClient(api_key="test_key")
         
-        mock_create = AsyncMock(side_effect=openai.RateLimitError(
-            message="Rate limit exceeded",
-            response=MagicMock(),
-            body=None
+        mock_generate = AsyncMock(side_effect=APIError(
+            code=429,
+            response_json=None,
+            response=MagicMock()
         ))
-        client.client.chat.completions.create = mock_create
+        client.client.aio.models.generate_content = mock_generate
         
         req = PromptRequest(
             system_prompt="sys", user_prompt="usr",
@@ -170,12 +168,14 @@ class TestOpenAIClientErrorHandling:
 
     @pytest.mark.anyio
     async def test_timeout_error_translation(self):
-        client = OpenAIClient(api_key="test_key")
+        client = GeminiClient(api_key="test_key")
         
-        mock_create = AsyncMock(side_effect=openai.APITimeoutError(
-            request=MagicMock()
+        mock_generate = AsyncMock(side_effect=APIError(
+            code=408,
+            response_json=None,
+            response=MagicMock()
         ))
-        client.client.chat.completions.create = mock_create
+        client.client.aio.models.generate_content = mock_generate
         
         req = PromptRequest(
             system_prompt="sys", user_prompt="usr",
@@ -186,33 +186,15 @@ class TestOpenAIClientErrorHandling:
             await client.generate(req)
 
     @pytest.mark.anyio
-    async def test_connection_error_translation(self):
-        client = OpenAIClient(api_key="test_key")
+    async def test_server_error_transient_translation(self):
+        client = GeminiClient(api_key="test_key")
         
-        mock_create = AsyncMock(side_effect=openai.APIConnectionError(
-            request=MagicMock()
+        mock_generate = AsyncMock(side_effect=APIError(
+            code=503,
+            response_json=None,
+            response=MagicMock()
         ))
-        client.client.chat.completions.create = mock_create
-        
-        req = PromptRequest(
-            system_prompt="sys", user_prompt="usr",
-            response_schema=LLMOutput, vision_enabled=False
-        )
-        
-        with pytest.raises(LLMConnectionError):
-            await client.generate(req)
-
-    @pytest.mark.anyio
-    async def test_status_error_transient_translation(self):
-        client = OpenAIClient(api_key="test_key")
-        
-        # 503 Service Unavailable represents a transient server failure
-        mock_create = AsyncMock(side_effect=openai.APIStatusError(
-            message="Service Unavailable",
-            response=MagicMock(status_code=503),
-            body=None
-        ))
-        client.client.chat.completions.create = mock_create
+        client.client.aio.models.generate_content = mock_generate
         
         req = PromptRequest(
             system_prompt="sys", user_prompt="usr",
@@ -224,15 +206,14 @@ class TestOpenAIClientErrorHandling:
 
     @pytest.mark.anyio
     async def test_status_error_fatal_translation(self):
-        client = OpenAIClient(api_key="test_key")
+        client = GeminiClient(api_key="test_key")
         
-        # 400 Bad Request represents a fatal parameter error
-        mock_create = AsyncMock(side_effect=openai.APIStatusError(
-            message="Bad Request",
-            response=MagicMock(status_code=400),
-            body=None
+        mock_generate = AsyncMock(side_effect=APIError(
+            code=400,
+            response_json=None,
+            response=MagicMock()
         ))
-        client.client.chat.completions.create = mock_create
+        client.client.aio.models.generate_content = mock_generate
         
         req = PromptRequest(
             system_prompt="sys", user_prompt="usr",
@@ -241,4 +222,4 @@ class TestOpenAIClientErrorHandling:
         
         with pytest.raises(AIContentAnalysisError) as exc_info:
             await client.generate(req)
-        assert "fatal status error" in str(exc_info.value)
+        assert "fatal API error" in str(exc_info.value)

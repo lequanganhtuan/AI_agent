@@ -74,6 +74,13 @@ class Settings(BaseSettings):
         alias="OPENAI_API_KEY",
     )
 
+    # Gemini (Phase 5)
+    gemini_api_key: str | None = Field(
+        default=None,
+        alias="GEMINI_API_KEY",
+    )
+
+
     # Redis (Future Phase)
     redis_url: str | None = Field(
         default=None,
