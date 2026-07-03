@@ -13,3 +13,12 @@ class LLMTimeoutError(AIContentAnalysisError):
 class LLMRateLimitError(AIContentAnalysisError):
     """Raised when the LLM API rate limit is exceeded."""
     pass
+
+class LLMResponseParseError(AIContentAnalysisError):
+    """Raised when the raw LLM response fails structural string deserialization or schema mapping."""
+    pass
+
+class LLMResponseValidationError(AIContentAnalysisError):
+    """Raised when semantic/logical validation rules fail verification on the LLM output."""
+    pass
+
