@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Any
 from pydantic import BaseModel
 
 class URLComponents(BaseModel):
@@ -293,6 +293,7 @@ class AnalysisContext(BaseModel):
     static: StaticAnalysisResult
     threat_intelligence: ThreatIntelligenceResult = Field(alias="threat_intel")
     dynamic: DynamicAnalysisResult | None = None
+    ai: Optional[Any] = None
 
     model_config = ConfigDict(
         populate_by_name=True
