@@ -48,10 +48,13 @@ def test_prompt_request():
         system_prompt="You are a helper",
         user_prompt="Analyze this",
         response_schema=DummySchema,
-        vision_enabled=True
+        vision_enabled=True,
+        screenshot_base64="mock_base64"
     )
     assert req.vision_enabled is True
     assert req.response_schema == DummySchema
+    assert req.screenshot_base64 == "mock_base64"
+
 
 def test_llm_output():
     output_data = {

@@ -212,8 +212,11 @@ class TestBuilder:
     def test_build_prompt_vision_enabled_with_screenshot(self, sample_input):
         result = build_prompt(sample_input)
         assert result.vision_enabled is True
+        assert result.screenshot_base64 == sample_input.screenshot_path
 
     def test_build_prompt_vision_disabled_without_screenshot(self, minimal_input):
         result = build_prompt(minimal_input)
         assert result.vision_enabled is False
+        assert result.screenshot_base64 is None
+
 

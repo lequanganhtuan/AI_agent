@@ -126,8 +126,9 @@ class TestGeminiClientPayload:
             user_prompt="user instructions",
             response_schema=LLMOutput,
             vision_enabled=True,
-            screenshot_path="YmFzZTY0cGF5bG9hZA=="
+            screenshot_base64="YmFzZTY0cGF5bG9hZA=="
         )
+
         
         result = await client.generate(req)
         assert result == "Vision Result String"

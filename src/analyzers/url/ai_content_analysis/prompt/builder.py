@@ -31,7 +31,8 @@ def build_prompt(analysis_input: AIAnalysisInput) -> PromptRequest:
         user_prompt=user_prompt,
         response_schema=LLMOutput,
         vision_enabled=vision_enabled,
-        screenshot_path=analysis_input.screenshot_path
+        screenshot_base64=analysis_input.screenshot_path
     )
+
 
 

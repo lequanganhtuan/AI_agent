@@ -5,8 +5,7 @@ from src.core.settings import settings
 class AIAnalysisConfig(BaseModel):
     """Configuration settings specific to the AI Content Analysis module."""
     
-    # API Keys from centralized core settings
-    openai_api_key: str | None = Field(default=settings.openai_api_key)
+    # API Keys from centralized core setting
     gemini_api_key: str | None = Field(default=settings.gemini_api_key)
     
     # Deployment model target

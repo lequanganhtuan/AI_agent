@@ -11,6 +11,7 @@ from typing import Optional
 from src.analyzers.url.ai_content_analysis.config import config
 from src.analyzers.url.ai_content_analysis.models import PromptRequest
 from src.analyzers.url.ai_content_analysis.client.llm_client import BaseLLMClient
+from src.analyzers.url.ai_content_analysis.client.retry import execute_with_retry
 from src.analyzers.url.ai_content_analysis.exceptions import (
     AIContentAnalysisError,
     LLMConnectionError,
@@ -30,17 +31,18 @@ class GeminiClient(BaseLLMClient):
         self.client = genai.Client(api_key=self.api_key)
 
     async def generate(self, request: PromptRequest) -> str:
-        """Asynchronously triggers the LLM generation flow on the Gemini client.
-        
-        Sequences system instructions and user context multimodal vision payloads.
-        """
+        """Asynchronously triggers the LLM generation flow on the Gemini client wrapped with a retry policy."""
+        return await execute_with_retry(self._generate_once, request)
+
+    async def _generate_once(self, request: PromptRequest) -> str:
+        """Helper executing a single call to the live Gemini API endpoint."""
         # 1. Prepare contents array structure (User Context)
         contents = [request.user_prompt]
 
-        if request.vision_enabled and request.screenshot_path:
+        if request.vision_enabled and request.screenshot_base64:
             # Build unified multimodal payload using types.Part
             try:
-                decoded_image = base64.b64decode(request.screenshot_path)
+                decoded_image = base64.b64decode(request.screenshot_base64)
                 image_part = types.Part.from_bytes(
                     data=decoded_image,
                     mime_type="image/png"
