@@ -91,12 +91,12 @@ def test_content_analysis_result():
 
 def test_ai_signal():
     sig = AISignal(
-        signal=AISignalType.CREDENTIAL_HARVESTING,
+        signal=AISignalType.DATA_HARVESTING,
         severity=Severity.HIGH,
         confidence=0.9,
         description="Login form detected on untrusted domain"
     )
-    assert sig.signal == AISignalType.CREDENTIAL_HARVESTING
+    assert sig.signal == AISignalType.DATA_HARVESTING
     assert sig.severity == Severity.HIGH
 
 def test_ai_risk():
@@ -178,7 +178,7 @@ def test_confidence_range_validation():
     # Test AISignal confidence boundary
     with pytest.raises(ValidationError):
         AISignal(
-            signal=AISignalType.OTHER,
+            signal=AISignalType.DATA_HARVESTING,
             severity=Severity.LOW,
             confidence=1.1,  # Invalid
             description="Test signal"
