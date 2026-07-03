@@ -115,3 +115,6 @@ class AIAnalysisResult(BaseModel):
     content: ContentAnalysisResult
     signals: list[AISignal]
     risk: AIRisk
+    system_prompt: Optional[str] = None
+    user_prompt: Optional[str] = None
+

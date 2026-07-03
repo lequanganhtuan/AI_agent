@@ -339,6 +339,10 @@ body {
 .theme-high .circle { stroke: var(--risk-high); }
 .theme-high .risk-level { color: var(--risk-high); }
 
+.theme-critical .circle { stroke: var(--risk-high); }
+.theme-critical .risk-level { color: var(--risk-high); }
+
+
 /* Static Analysis Grid */
 .phases-grid {
     display: grid;
@@ -877,4 +881,49 @@ body {
     font-weight: 600;
     text-align: right;
 }
+
+/* Prompt Engineering UI Elements */
+.copy-btn:hover {
+    background: rgba(255, 255, 255, 0.15) !important;
+    border-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+.copy-btn:active {
+    transform: scale(0.95);
+    background: rgba(96, 165, 250, 0.2) !important;
+    border-color: rgba(96, 165, 250, 0.4) !important;
+}
+
+.template-btn {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.template-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    filter: brightness(1.2);
+}
+
+.template-btn:active {
+    transform: translateY(0);
+}
+
+.prompt-box textarea::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.prompt-box textarea::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.prompt-box textarea::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+}
+
+.prompt-box textarea::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
 

@@ -217,6 +217,71 @@ async def analyze_url(req: AnalyzeRequest):
                     )
                 )
             
+            # Mock AI content analysis result
+            from src.analyzers.url.ai_content_analysis.models import (
+                AIAnalysisResult, ContentAnalysisResult, AISignal, AISignalType, AIRisk, RiskLevel, FraudCategory, RecommendedAction, Severity
+            )
+            
+            mock_system_prompt = "You are a professional security analysis LLM. Analyze the provided HTML context to detect brand impersonation, visual cloning, fake login pages, or data harvesting attempts. Never speculate. Return JSON only matching the schema."
+            mock_user_prompt = f"Target URL: {req.url}\nFinal Landing URL: {req.url}\nDocument Title: Demo Scenario Simulation\n\nAnalyze this URL context to check if it impersonates any brand."
+            
+            if "scenario2" in url_lower:
+                ai_res = AIAnalysisResult(
+                    content=ContentAnalysisResult(
+                        website_purpose="Malicious simulation page.",
+                        detected_brand="Google",
+                        fraud_category=FraudCategory.BRAND_IMPERSONATION,
+                        confidence=0.95,
+                        summary="Brand impersonation targeting Google authentication.",
+                        reasoning=["Logo matches Google OAuth signature"],
+                        findings=["Fake Google sign-in prompt"],
+                        recommended_action=RecommendedAction.BLOCK
+                    ),
+                    signals=[
+                        AISignal(signal=AISignalType.BRAND_IMPERSONATION, severity=Severity.HIGH, confidence=0.95, description="Google brand spoofed.")
+                    ],
+                    risk=AIRisk(score=52.5, level=RiskLevel.HIGH, summary="Detected 1 AI security indicator: Brand Impersonation."),
+                    system_prompt=mock_system_prompt,
+                    user_prompt=mock_user_prompt
+                )
+            elif "scenario3" in url_lower or "scenario7" in url_lower:
+                ai_res = AIAnalysisResult(
+                    content=ContentAnalysisResult(
+                        website_purpose="Fake banking portal.",
+                        detected_brand="PayPal",
+                        fraud_category=FraudCategory.PHISHING,
+                        confidence=0.98,
+                        summary="Phishing attempt exfiltrating credentials.",
+                        reasoning=["Form contains credential capture", "Fake login page observed"],
+                        findings=["Password exfiltration script", "Suspicious login inputs"],
+                        recommended_action=RecommendedAction.BLOCK
+                    ),
+                    signals=[
+                        AISignal(signal=AISignalType.DATA_HARVESTING, severity=Severity.HIGH, confidence=0.98, description="Password exfiltration detected."),
+                        AISignal(signal=AISignalType.FAKE_LOGIN_PAGE, severity=Severity.HIGH, confidence=0.98, description="Fake Login page.")
+                    ],
+                    risk=AIRisk(score=90.0, level=RiskLevel.CRITICAL, summary="Detected 2 AI security indicators: Data Harvesting and Fake Login Page."),
+                    system_prompt=mock_system_prompt,
+                    user_prompt=mock_user_prompt
+                )
+            else:
+                ai_res = AIAnalysisResult(
+                    content=ContentAnalysisResult(
+                        website_purpose="Clean resource or informational blog.",
+                        detected_brand=None,
+                        fraud_category=FraudCategory.LEGITIMATE,
+                        confidence=0.99,
+                        summary="No threat signs detected by AI.",
+                        reasoning=["Benign content only"],
+                        findings=["Safe content only"],
+                        recommended_action=RecommendedAction.ALLOW
+                    ),
+                    signals=[],
+                    risk=AIRisk(score=0.0, level=RiskLevel.LOW, summary="No AI security indicators detected."),
+                    system_prompt=mock_system_prompt,
+                    user_prompt=mock_user_prompt
+                )
+
             return AnalysisContext(
                 validation=val_res,
                 static=static_res,
@@ -224,7 +289,8 @@ async def analyze_url(req: AnalyzeRequest):
                 dynamic=DynamicAnalysisResult(
                     status="completed",
                     risk=DynamicRisk(score=20, level="LOW", triggered_signals=[])
-                )
+                ),
+                ai=ai_res
             )
 
         url_analyzer = URLAnalyzer()
@@ -267,7 +333,13 @@ async def analyze_url(req: AnalyzeRequest):
 
         await asyncio.to_thread(run_dynamic_in_thread, context)
         
+        # 4. Sequential trigger of AI Content Analysis (Phase 5)
+        from src.analyzers.url.ai_content_analysis.orchestrator import AIContentAnalysisOrchestrator
+        ai_orchestrator = AIContentAnalysisOrchestrator()
+        await ai_orchestrator.analyze(context)
+        
         return context
+
         
     except Exception as e:
         import traceback

@@ -61,5 +61,8 @@ class AIAnalysisService:
         return AIAnalysisResult(
             content=content_result,
             signals=signals,
-            risk=risk
+            risk=risk,
+            system_prompt=prompt_request.system_prompt,
+            user_prompt=prompt_request.user_prompt
         )
+

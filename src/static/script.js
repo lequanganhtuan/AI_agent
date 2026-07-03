@@ -5,6 +5,40 @@ document.addEventListener('DOMContentLoaded', () => {
     const spinner = document.getElementById('spinner');
     const errorMsg = document.getElementById('error-message');
     const resultsSection = document.getElementById('results-section');
+
+    // Clipboard copy handlers
+    const copySysBtn = document.getElementById('copy-sys-btn');
+    const copyUserBtn = document.getElementById('copy-user-btn');
+    const sysText = document.getElementById('sys-prompt-text');
+    const userText = document.getElementById('user-prompt-text');
+
+    if (copySysBtn) {
+        copySysBtn.addEventListener('click', () => {
+            sysText.select();
+            navigator.clipboard.writeText(sysText.value);
+            copySysBtn.textContent = 'Copied!';
+            setTimeout(() => { copySysBtn.textContent = 'Copy'; }, 2000);
+        });
+    }
+    if (copyUserBtn) {
+        copyUserBtn.addEventListener('click', () => {
+            userText.select();
+            navigator.clipboard.writeText(userText.value);
+            copyUserBtn.textContent = 'Copied!';
+            setTimeout(() => { copyUserBtn.textContent = 'Copy'; }, 2000);
+        });
+    }
+
+    // Template click handlers
+    document.addEventListener('click', (e) => {
+        if (e.target && e.target.classList.contains('template-btn')) {
+            const url = e.target.getAttribute('data-url');
+            if (url) {
+                input.value = url;
+                form.dispatchEvent(new Event('submit'));
+            }
+        }
+    });
     
     // Tab Elements
     const tabBtns = document.querySelectorAll('.tab-btn');
@@ -348,6 +382,135 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('dynamic-screenshot-img').classList.add('hidden');
             document.getElementById('dynamic-screenshot-placeholder').classList.remove('hidden');
             document.getElementById('dynamic-redirect-chain').innerHTML = '<div class="timeline-empty">No redirects occurred</div>';
+        }
+
+        // --- 4. POPULATE AI CONTENT ANALYSIS (PHASE 5) ---
+        const aiResult = data.ai;
+        if (aiResult) {
+            const aiScore = aiResult.risk.score;
+            const aiLevel = aiResult.risk.level || 'LOW';
+            
+            // Gauge
+            const aiScorePath = document.getElementById('ai-score-path');
+            const aiScoreValue = document.getElementById('ai-score-value');
+            const aiRiskLevelText = document.getElementById('ai-risk-level-text');
+            const aiScoreCard = document.getElementById('ai-score-card');
+            
+            setTimeout(() => {
+                aiScorePath.setAttribute('stroke-dasharray', `${Math.min(100, aiScore)}, 100`);
+                animateValue(aiScoreValue, 0, Math.round(aiScore), 1000);
+            }, 100);
+
+            aiScoreCard.className = 'score-card';
+            aiScoreCard.classList.add(`theme-${aiLevel.toLowerCase()}`);
+            aiRiskLevelText.textContent = aiLevel;
+
+            // Verdict
+            const actionBadge = document.getElementById('ai-action-badge');
+            const action = aiResult.content.recommended_action || 'ALLOW';
+            actionBadge.textContent = action;
+            actionBadge.className = 'status-pill';
+            if (action === 'BLOCK') {
+                actionBadge.style.background = 'rgba(239, 68, 68, 0.15)';
+                actionBadge.style.color = '#ef4444';
+                actionBadge.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+            } else if (action === 'WARN') {
+                actionBadge.style.background = 'rgba(245, 158, 11, 0.15)';
+                actionBadge.style.color = '#f59e0b';
+                actionBadge.style.border = '1px solid rgba(245, 158, 11, 0.3)';
+            } else if (action === 'MONITOR') {
+                actionBadge.style.background = 'rgba(59, 130, 246, 0.15)';
+                actionBadge.style.color = '#3b82f6';
+                actionBadge.style.border = '1px solid rgba(59, 130, 246, 0.3)';
+            } else {
+                actionBadge.style.background = 'rgba(16, 185, 129, 0.15)';
+                actionBadge.style.color = '#10b981';
+                actionBadge.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+            }
+
+            // Insights
+            document.getElementById('ai-website-purpose').textContent = aiResult.content.website_purpose || '-';
+            document.getElementById('ai-detected-brand').textContent = aiResult.content.detected_brand || 'None';
+            document.getElementById('ai-fraud-category').textContent = aiResult.content.fraud_category || '-';
+            
+            const rawConf = aiResult.content.confidence;
+            const cleanConf = (typeof rawConf === 'number') ? `${Math.round(rawConf * 100)}%` : '-';
+            document.getElementById('ai-brand-confidence').textContent = cleanConf;
+
+            // Reasoning list
+            const reasoningDetails = document.getElementById('ai-reasoning-details');
+            reasoningDetails.innerHTML = '';
+            const reasoning = aiResult.content.reasoning || [];
+            if (reasoning.length === 0) {
+                reasoningDetails.innerHTML = '<div class="bullet-item">No reasoning telemetry compiled.</div>';
+            } else {
+                const ul = document.createElement('ul');
+                ul.className = 'summary-list';
+                reasoning.forEach(r => {
+                    const li = document.createElement('li');
+                    li.textContent = r;
+                    ul.appendChild(li);
+                });
+                reasoningDetails.appendChild(ul);
+            }
+
+            // Findings list
+            const findingsDetails = document.getElementById('ai-findings-details');
+            findingsDetails.innerHTML = '';
+            const findings = aiResult.content.findings || [];
+            if (findings.length === 0) {
+                findingsDetails.innerHTML = '<div class="bullet-item">No indicators generated.</div>';
+            } else {
+                const ul = document.createElement('ul');
+                ul.className = 'summary-list';
+                findings.forEach(f => {
+                    const li = document.createElement('li');
+                    li.textContent = f;
+                    ul.appendChild(li);
+                });
+                findingsDetails.appendChild(ul);
+            }
+
+            // Signals Badges
+            const signalsBadgeContainer = document.getElementById('ai-signals-badge-container');
+            signalsBadgeContainer.innerHTML = '';
+            const aiSignals = aiResult.signals || [];
+            if (aiSignals.length === 0) {
+                signalsBadgeContainer.innerHTML = '<span class="no-signals">No AI signals generated.</span>';
+            } else {
+                aiSignals.forEach(sig => {
+                    const span = document.createElement('span');
+                    span.textContent = `${sig.signal} [${sig.severity}]`;
+                    span.className = 'badge';
+                    if (sig.severity === 'CRITICAL' || sig.severity === 'HIGH') {
+                        span.classList.add('badge-danger');
+                    } else if (sig.severity === 'MEDIUM') {
+                        span.classList.add('badge-warning');
+                    } else {
+                        span.classList.add('badge-info');
+                    }
+                    span.title = sig.description || '';
+                    signalsBadgeContainer.appendChild(span);
+                });
+            }
+
+            // Prompts Panel Textareas
+            document.getElementById('sys-prompt-text').value = aiResult.system_prompt || '';
+            document.getElementById('user-prompt-text').value = aiResult.user_prompt || '';
+        } else {
+            // Default when no ai data
+            document.getElementById('ai-score-path').setAttribute('stroke-dasharray', '0, 100');
+            document.getElementById('ai-score-value').textContent = '0';
+            document.getElementById('ai-risk-level-text').textContent = 'UNKNOWN';
+            document.getElementById('ai-website-purpose').textContent = '-';
+            document.getElementById('ai-detected-brand').textContent = '-';
+            document.getElementById('ai-fraud-category').textContent = '-';
+            document.getElementById('ai-brand-confidence').textContent = '-';
+            document.getElementById('ai-reasoning-details').innerHTML = '<div class="bullet-item">No reasoning telemetry compiled.</div>';
+            document.getElementById('ai-findings-details').innerHTML = '<div class="bullet-item">No indicators generated.</div>';
+            document.getElementById('ai-signals-badge-container').innerHTML = '<span class="no-signals">No indicators reported.</span>';
+            document.getElementById('sys-prompt-text').value = 'System prompt will generate after analysis...';
+            document.getElementById('user-prompt-text').value = 'User prompt will generate after analysis...';
         }
         
         // Show results
