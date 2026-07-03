@@ -19,7 +19,8 @@ class AIAnalysisConfig(BaseModel):
     max_tokens: int = Field(default=2000)
     
     # HTTP Client request timeout limit
-    timeout_seconds: float = Field(default=30.0)
+    timeout_seconds: float = Field(default=60.0)
+
 
 
 # Active configuration instance
