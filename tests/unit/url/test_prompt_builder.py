@@ -188,11 +188,17 @@ class TestBuilder:
         result = build_prompt(sample_input)
         assert isinstance(result, PromptRequest)
 
-    def test_build_prompt_system_prompt_contains_schema(self, sample_input):
+    def test_build_prompt_system_prompt_is_pure_constant(self, sample_input):
         result = build_prompt(sample_input)
-        assert "website_purpose" in result.system_prompt
-        assert "is_phishing" in result.system_prompt
-        assert SYSTEM_PROMPT in result.system_prompt
+        # System prompt must be the exact static constant — no schema appended
+        assert result.system_prompt == SYSTEM_PROMPT
+
+    def test_build_prompt_schema_in_user_prompt_not_system(self, sample_input):
+        result = build_prompt(sample_input)
+        # Schema keys must appear in user prompt
+        assert "website_purpose" in result.user_prompt
+        assert "is_phishing" in result.user_prompt
+        assert "### EXPECTED OUTPUT" in result.user_prompt
 
     def test_build_prompt_user_prompt_has_sections(self, sample_input):
         result = build_prompt(sample_input)
@@ -210,3 +216,4 @@ class TestBuilder:
     def test_build_prompt_vision_disabled_without_screenshot(self, minimal_input):
         result = build_prompt(minimal_input)
         assert result.vision_enabled is False
+

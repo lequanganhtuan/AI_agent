@@ -1,5 +1,6 @@
 import json
 from src.analyzers.url.ai_content_analysis.models import AIAnalysisInput
+from src.analyzers.url.ai_content_analysis.prompt.schema import LLM_JSON_SCHEMA
 
 MAX_TEXT_LENGTH = 8000
 
@@ -79,10 +80,8 @@ def build_user_prompt(analysis_input: AIAnalysisInput) -> str:
     # --- EXPECTED OUTPUT ---
     sections.append("\n### EXPECTED OUTPUT")
     sections.append(
-        "Return a JSON object with exactly these keys: "
-        "website_purpose, is_phishing, fraud_category, detected_brand, "
-        "brand_confidence, reasoning, summary, recommended_action, "
-        "risk_level, findings."
+        "You must return your response as a JSON object matching this exact schema:"
     )
+    sections.append(LLM_JSON_SCHEMA)
 
     return "\n".join(sections)
