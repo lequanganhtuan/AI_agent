@@ -65,7 +65,7 @@ def test_calculator_reaches_high():
         evidence="Detected password input field."
     )
     result = DynamicRiskCalculator.calculate([sig1, sig2])
-    assert result.score == 65
+    assert result.score == 100
     assert result.level == "HIGH"
 
 
@@ -136,3 +136,17 @@ def test_summary_generator_output():
         "  - Detected password input field.",
         "  - Detected redirect to private IP."
     ]
+
+
+def test_calculator_confidence_multiplication():
+    """Verify that the risk calculator scales signal weights by their confidence score."""
+    # PASSWORD_FIELD weight is 25. With confidence 0.9, it should contribute 25 * 0.9 = 22.
+    sig = DynamicSignal(
+        signal=DynamicSignalType.PASSWORD_FIELD,
+        severity="HIGH",
+        confidence=0.9,
+        evidence="Detected password input field."
+    )
+    result = DynamicRiskCalculator.calculate([sig])
+    assert result.score == 22
+

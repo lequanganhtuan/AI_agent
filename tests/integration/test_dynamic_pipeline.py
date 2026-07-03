@@ -111,7 +111,7 @@ async def test_dynamic_pipeline_integration_login():
     assert screenshot_p.exists()
     
     # Verify summary reports compiled
-    assert "Risk Score: 35" in result.summary
+    assert "Risk Score: 45" in result.summary
     assert "Risk Level: MEDIUM" in summary if (summary := result.summary) else False
     
     # Cleanup screenshot file

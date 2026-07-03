@@ -18,7 +18,7 @@ class DOMAnalyzer:
         self.iframe_detector = IframeDetector()
         self.meta_detector = MetaDetector()
         self.javascript_detector = JavaScriptDetector()
-        self.script_detector = ScriptDetector()
+        self.script_detector = ScriptDetector(config=self.config)
         self.resource_detector = ResourceDetector()
 
     def analyze(self, snapshot: PageSnapshot) -> DOMAnalysis:
@@ -33,13 +33,14 @@ class DOMAnalyzer:
         """
         html_content = snapshot.html or ""
         soup = BeautifulSoup(html_content, "html.parser")
+        final_url = snapshot.final_url or snapshot.original_url or ""
 
-        # Delegate parsing tasks to focused detectors
-        form_data = self.form_detector.detect(soup)
+        # Delegate parsing tasks to focused detectors passing context URL
+        form_data = self.form_detector.detect(soup, page_url=final_url)
         iframe_data = self.iframe_detector.detect(soup)
         meta_data = self.meta_detector.detect(soup)
         js_data = self.javascript_detector.detect(soup)
-        script_data = self.script_detector.detect(soup)
+        script_data = self.script_detector.detect(soup, page_url=final_url)
         resource_data = self.resource_detector.detect(soup)
 
         return DOMAnalysis(
@@ -49,6 +50,11 @@ class DOMAnalyzer:
             has_otp_field=form_data["has_otp_field"],
             has_cccd_field=form_data["has_cccd_field"],
             has_credit_card_field=form_data["has_credit_card_field"],
+            form_actions=form_data["form_actions"],
+            has_cross_domain_form=form_data["has_cross_domain_form"],
+            has_insecure_form_action=form_data["has_insecure_form_action"],
+            has_get_login_form=form_data["has_get_login_form"],
+            has_empty_action_form=form_data["has_empty_action_form"],
 
             iframe_count=iframe_data["iframe_count"],
             hidden_iframe_count=iframe_data["hidden_iframe_count"],
@@ -63,6 +69,10 @@ class DOMAnalyzer:
             inline_script_count=script_data["inline_script_count"],
             external_script_count=script_data["external_script_count"],
             external_scripts=script_data["external_scripts"],
+            first_party_scripts=script_data["first_party_scripts"],
+            cdn_scripts=script_data["cdn_scripts"],
+            unlisted_scripts=script_data["unlisted_scripts"],
+            ip_scripts=script_data["ip_scripts"],
 
             image_sources=resource_data["image_sources"],
             favicon_url=resource_data["favicon_url"]

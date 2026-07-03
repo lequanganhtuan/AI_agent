@@ -1,6 +1,6 @@
 from __future__ import annotations
 import pytest
-from unittest.mock import MagicMock, AsyncMock, call
+from unittest.mock import MagicMock, AsyncMock
 from src.core.models import (
     AnalysisContext,
     ValidationResult,
@@ -109,7 +109,7 @@ async def test_orchestrator_success_flow():
     orchestrator.dom_analyzer.analyze.assert_called_once_with(mock_snapshot)
     orchestrator.network_analyzer.stop_capture.assert_called_once()
     orchestrator.signal_generator.generate.assert_called_once_with(mock_redirect, mock_dom, mock_network)
-    orchestrator.risk_calculator.calculate.assert_called_once_with(mock_signals)
+    orchestrator.risk_calculator.calculate.assert_called_once_with(mock_signals, is_trusted=False)
 
 
 @pytest.mark.anyio
@@ -151,14 +151,12 @@ async def test_orchestrator_navigation_failure():
 
 def test_orchestrator_config_assertion():
     """Verify that invalid configuration thresholds raise ConfigurationError."""
-    # Temporarily set out of order values to trigger exception
     from src.analyzers.url.dynamic_analysis import config as cfg
     
     original_thresholds = cfg.RISK_THRESHOLDS.copy()
     try:
         cfg.RISK_THRESHOLDS = {"LOW": 50, "MEDIUM": 20, "HIGH": 80}
         with pytest.raises(ConfigurationError):
-            # Reload validation logic or re-assert it
             if not (cfg.RISK_THRESHOLDS["LOW"] < cfg.RISK_THRESHOLDS["MEDIUM"] < cfg.RISK_THRESHOLDS["HIGH"]):
                 raise ConfigurationError("Invalid risk threshold boundaries.")
     except Exception:

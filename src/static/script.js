@@ -107,9 +107,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const threatLevel = threatRisk.risk_level;
         const confidenceVal = Math.round(threatRisk.confidence * 100);
 
-        // Update Threat Circle Gauge (compounded score is max 80, map it out of 80 visually or normalized as fraction)
-        // Let's normalize it to 100 for visual consistency: (threatScore / 80) * 100
-        const normalizedThreatScore = Math.min(100, Math.round((threatScore / 80) * 100));
+        // Update Threat Circle Gauge natively out of 100
+        const normalizedThreatScore = Math.min(100, threatScore);
         setTimeout(() => {
             threatScorePath.setAttribute('stroke-dasharray', `${normalizedThreatScore}, 100`);
             animateValue(threatScoreValue, 0, threatScore, 1000);
@@ -527,7 +526,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         const score = ab ? ab.abuse_score || 0 : 0;
-        if (isHit || score >= 40) {
+        const hasReports = ab && ab.total_reports > 10;
+        
+        if (score >= 40 || hasReports) {
             const isMalicious = score >= 80;
             status.textContent = isMalicious ? 'Malicious' : 'Suspicious';
             status.className = `status-pill status-${isMalicious ? 'danger' : 'warning'}`;
@@ -541,7 +542,15 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             status.textContent = 'Clean';
             status.className = 'status-pill status-clean';
-            detail.textContent = `Confidence score: ${score}%`;
+            
+            let explanation = `Confidence score: ${score}%`;
+            if (ab && ab.total_reports > 0) {
+                explanation += ` (${ab.total_reports} reports)`;
+            }
+            if (ab && ab.usage_type && (ab.usage_type.toLowerCase().includes('data center') || ab.usage_type.toLowerCase().includes('web hosting'))) {
+                explanation += ` (Datacenter)`;
+            }
+            detail.textContent = explanation;
         }
     }
 

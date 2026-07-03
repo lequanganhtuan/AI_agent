@@ -169,3 +169,41 @@ def test_dynamic_signal_generator_all_rules():
 
     assert DynamicSignalType.FAILED_REQUEST in signal_map
     assert signal_map[DynamicSignalType.FAILED_REQUEST].severity == SIGNAL_SEVERITY[DynamicSignalType.FAILED_REQUEST]
+
+
+def test_dynamic_signal_generator_composite_and_form_attributes():
+    """Verify that new composite signals (LOGIN_CREDENTIAL_COLLECTION, OBFUSCATED_LOGIN_PAGE, etc.) and deep form action signals are properly triggered."""
+    redirect_analysis = RedirectAnalysis()
+    dom_analysis = DOMAnalysis(
+        form_count=2,
+        has_login_form=True,
+        has_password_field=True,
+        has_otp_field=False,
+        has_cccd_field=False,
+        has_credit_card_field=False,
+        form_actions=["https://external-evil.com/exfiltrate"],
+        has_cross_domain_form=True,
+        has_insecure_form_action=True,
+        has_get_login_form=True,
+        has_empty_action_form=True,
+        has_eval=True,
+        unlisted_scripts=["https://malicious-cdn.xyz/payload.js"],
+        ip_scripts=["http://10.10.10.10/inject.js"]
+    )
+    network_analysis = NetworkAnalysis()
+
+    generator = DynamicSignalGenerator()
+    signals = generator.generate(redirect_analysis, dom_analysis, network_analysis)
+    signal_map = {sig.signal for sig in signals}
+
+    # Verify new low-level signals
+    assert DynamicSignalType.UNLISTED_EXTERNAL_SCRIPT in signal_map
+    assert DynamicSignalType.IP_ADDRESS_EXTERNAL_SCRIPT in signal_map
+    assert DynamicSignalType.CROSS_DOMAIN_FORM_ACTION in signal_map
+    assert DynamicSignalType.INSECURE_FORM_ACTION in signal_map
+    assert DynamicSignalType.GET_LOGIN_FORM in signal_map
+    assert DynamicSignalType.EMPTY_FORM_ACTION in signal_map
+
+    # Verify composite signals triggered
+    assert DynamicSignalType.LOGIN_CREDENTIAL_COLLECTION in signal_map
+    assert DynamicSignalType.OBFUSCATED_LOGIN_PAGE in signal_map

@@ -26,6 +26,11 @@ class ThreatRiskCalculator:
             "urlscan": False,
         }
 
+        critical_triggered = []
+        high_triggered = []
+        medium_triggered = []
+        low_triggered = []
+
         # Track triggered signals and provider hits
         for sig in signals:
             triggered_signals.append(sig.code)
@@ -43,25 +48,42 @@ class ThreatRiskCalculator:
                 provider_hits["urlscan"] = True
 
             # Categorize triggers
-            if sig.code in ["VT_CONFIRMED_MALICIOUS", "VT_SUSPICIOUS", "GOOGLE_BLACKLIST", "URLHAUS_ACTIVE_MALWARE", "URLHAUS_INACTIVE_RECORD"]:
+            if sig.code in ["GOOGLE_BLACKLIST", "URLHAUS_ACTIVE_MALWARE", "VT_CONFIRMED_MALICIOUS", "PHISHING_FORM_DETECTED"]:
+                critical_triggered.append(sig.code)
                 blacklist_triggered = True
-            elif sig.code in ["ABUSEIPDB_HIGH_CONFIDENCE_MALICIOUS", "ABUSEIPDB_SUSPICIOUS", "ABUSEIPDB_REPORTS_FOUND", "ABUSEIPDB_DATACENTER_HOSTING"]:
-                reputation_triggered = True
-            elif sig.code in ["EXCESSIVE_REDIRECTS", "BEHAVIORAL_HIGH_RISK", "BEHAVIORAL_SUSPICIOUS", "PHISHING_FORM_DETECTED", "SUSPICIOUS_LOGIN_FIELDS", "RISKY_ASN_HOSTING", "URLSCAN_GLOBAL_MALICIOUS"]:
-                behavioral_triggered = True
+            elif sig.code in ["VT_SUSPICIOUS", "ABUSEIPDB_HIGH_CONFIDENCE_MALICIOUS", "BEHAVIORAL_HIGH_RISK", "URLSCAN_GLOBAL_MALICIOUS", "SUSPICIOUS_LOGIN_FIELDS"]:
+                high_triggered.append(sig.code)
+                if sig.code in ["VT_SUSPICIOUS"]:
+                    blacklist_triggered = True
+                elif sig.code in ["ABUSEIPDB_HIGH_CONFIDENCE_MALICIOUS"]:
+                    reputation_triggered = True
+                else:
+                    behavioral_triggered = True
+            elif sig.code in ["ABUSEIPDB_SUSPICIOUS", "ABUSEIPDB_REPORTS_FOUND", "ABUSEIPDB_DATACENTER_HOSTING", "BEHAVIORAL_SUSPICIOUS", "RISKY_ASN_HOSTING", "EXCESSIVE_REDIRECTS"]:
+                medium_triggered.append(sig.code)
+                if sig.code in ["ABUSEIPDB_SUSPICIOUS", "ABUSEIPDB_REPORTS_FOUND", "ABUSEIPDB_DATACENTER_HOSTING"]:
+                    reputation_triggered = True
+                else:
+                    behavioral_triggered = True
+            elif sig.code in ["URLHAUS_INACTIVE_RECORD"]:
+                low_triggered.append(sig.code)
+                blacklist_triggered = True
 
         score = 0
-
-        # Calculate composite score from buckets
-        if blacklist_triggered:
-            score += ThreatIntelConfig.BLACKLIST_SCORE_WEIGHT
+        if critical_triggered:
+            score = 95 + (len(critical_triggered) - 1) * 5
             triggered_signals.append("BLACKLIST_MATCH")
+        elif high_triggered:
+            score = 75 + (len(high_triggered) - 1) * 5
+            score = min(score, 90)
+        elif medium_triggered:
+            score = 40 + (len(medium_triggered) - 1) * 5
+            score = min(score, 70)
+        elif low_triggered:
+            score = 15 + (len(low_triggered) - 1) * 2
+            score = min(score, 30)
 
-        if behavioral_triggered:
-            score += ThreatIntelConfig.BEHAVIORAL_SCORE_WEIGHT
-
-        if reputation_triggered:
-            score += ThreatIntelConfig.REPUTATION_SCORE_WEIGHT
+        score = max(0, min(score, 100))
 
         # Calculate risk level from final score
         if score >= ThreatIntelConfig.HIGH_RISK_THRESHOLD:

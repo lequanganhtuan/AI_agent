@@ -55,7 +55,7 @@ class StaticURLAnalyzer:
         pattern = self.pattern_analyzer.analyze(validation_result)
         tld = self.tld_analyzer.analyze(validation_result)
         typo = self.typosquatting_analyzer.analyze(validation_result)
-        risk = self.risk_calculator.calculate(lexical, brand, pattern, tld, typo)
+        risk = self.risk_calculator.calculate(lexical, brand, pattern, tld, typo, validation_result)
 
         return StaticAnalysisResult(
             lexical=lexical,

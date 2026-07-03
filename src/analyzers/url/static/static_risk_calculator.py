@@ -5,6 +5,7 @@ from src.core.models import (
     TLDAnalysis,
     TyposquattingAnalysis,
     StaticRiskAnalysis,
+    ValidationResult,
 )
 
 from src.analyzers.url.static.config import (
@@ -13,7 +14,26 @@ from src.analyzers.url.static.config import (
 
 
 class StaticRiskCalculator:
-    def calculate(self, lexical: LexicalFeatures, brand: BrandAnalysis, pattern: PatternAnalysis, tld: TLDAnalysis, typo: TyposquattingAnalysis) -> StaticRiskAnalysis:
+    def calculate(self, lexical: LexicalFeatures, brand: BrandAnalysis, pattern: PatternAnalysis, tld: TLDAnalysis, typo: TyposquattingAnalysis, validation_result: ValidationResult | None = None) -> StaticRiskAnalysis:
+        # Check if the domain is a legitimate brand match or trusted platform
+        is_trusted = False
+        if brand.legitimate_domain_match:
+            is_trusted = True
+
+        if validation_result and validation_result.components:
+            domain = (validation_result.components.full_domain or "").lower().strip()
+            from src.analyzers.url.static.config import BrandConfig
+            if any(domain == trusted or domain.endswith("." + trusted) for trusted in BrandConfig.TRUSTED_PLATFORMS):
+                is_trusted = True
+
+        if is_trusted:
+            return StaticRiskAnalysis(
+                score=0,
+                risk_level="low",
+                triggered_signals=[],
+                summary=["URL belongs to a trusted platform or legitimate domain match."]
+            )
+
         score = 0
         triggered_signals: list[str] = []
         summary: list[str] = []
@@ -44,7 +64,6 @@ class StaticRiskCalculator:
             summary.append("Detected homoglyph attack")
             
         # 3. Pattern Obfuscation Analysis
-        # Lấy số lượng từ khóa linh hoạt (ưu tiên độ dài list nếu count bằng 0)
         keyword_count = pattern.suspicious_keyword_count or len(getattr(pattern, "suspicious_keywords", []))
         
         keyword_score = min(
@@ -92,31 +111,34 @@ class StaticRiskCalculator:
             triggered_signals.append("medium_risk_tld")
             summary.append(f"Medium risk TLD: {tld.tld}")
 
-        # 5. Lexical Structure Analysis (Toán tử >= quét chặt biên giá trị cấu hình)
+        # 5. Lexical Structure Analysis
+        lexical_score = 0
         if lexical.url_length >= RiskConfig.LONG_URL_THRESHOLD:
-            score += RiskConfig.LONG_URL_WEIGHT
+            lexical_score += RiskConfig.LONG_URL_WEIGHT
             triggered_signals.append("long_url")
             summary.append("URL length exceeds threshold")
 
         if lexical.domain_entropy >= RiskConfig.ENTROPY_THRESHOLD:
-            score += RiskConfig.HIGH_ENTROPY_WEIGHT
+            lexical_score += RiskConfig.HIGH_ENTROPY_WEIGHT
             triggered_signals.append("high_entropy")
             summary.append("High domain entropy")
 
         if lexical.digit_ratio_domain >= RiskConfig.DIGIT_RATIO_THRESHOLD:
-            score += RiskConfig.DIGIT_RATIO_WEIGHT
+            lexical_score += RiskConfig.DIGIT_RATIO_WEIGHT
             triggered_signals.append("high_digit_ratio")
             summary.append("High digit ratio in domain")
 
         if lexical.subdomain_count >= RiskConfig.SUBDOMAIN_THRESHOLD:
-            score += RiskConfig.SUBDOMAIN_WEIGHT
+            lexical_score += RiskConfig.SUBDOMAIN_WEIGHT
             triggered_signals.append("many_subdomains")
             summary.append("High number of subdomains")
+
+        score += min(lexical_score, 25)
             
         # 6. Score Saturation & Classification (Giới hạn trần điểm tối đa là 100)
         score = min(score, 100)
         
-        if score >= 70:
+        if score >= 75:
             risk_level = "high"
         elif score >= 40:
             risk_level = "medium"

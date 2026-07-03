@@ -31,6 +31,7 @@ class DynamicAnalysisConfig(BaseSettings):
     MULTI_REDIRECT_THRESHOLD: int = 3
 
 class Severity:
+    CRITICAL = "CRITICAL"
     HIGH = "HIGH"
     MEDIUM = "MEDIUM"
     LOW = "LOW"
@@ -59,19 +60,35 @@ class DynamicSignalType:
     API_USAGE = "API_USAGE"
     WEBSOCKET_USAGE = "WEBSOCKET_USAGE"
     FAILED_REQUEST = "FAILED_REQUEST"
+    
+    # Composite signals
+    LOGIN_CREDENTIAL_COLLECTION = "LOGIN_CREDENTIAL_COLLECTION"
+    LOGIN_REDIRECT_FLOW = "LOGIN_REDIRECT_FLOW"
+    OBFUSCATED_LOGIN_PAGE = "OBFUSCATED_LOGIN_PAGE"
+    PAYMENT_COLLECTION = "PAYMENT_COLLECTION"
+    
+    # Qualitative script analysis signals
+    UNLISTED_EXTERNAL_SCRIPT = "UNLISTED_EXTERNAL_SCRIPT"
+    IP_ADDRESS_EXTERNAL_SCRIPT = "IP_ADDRESS_EXTERNAL_SCRIPT"
+    
+    # Deep form attribute signals
+    CROSS_DOMAIN_FORM_ACTION = "CROSS_DOMAIN_FORM_ACTION"
+    INSECURE_FORM_ACTION = "INSECURE_FORM_ACTION"
+    GET_LOGIN_FORM = "GET_LOGIN_FORM"
+    EMPTY_FORM_ACTION = "EMPTY_FORM_ACTION"
 
 SIGNAL_SEVERITY: dict[str, str] = {
     DynamicSignalType.MULTI_REDIRECT: Severity.MEDIUM,
     DynamicSignalType.CROSS_DOMAIN_REDIRECT: Severity.MEDIUM,
-    DynamicSignalType.PRIVATE_IP_REDIRECT: Severity.HIGH,
+    DynamicSignalType.PRIVATE_IP_REDIRECT: Severity.CRITICAL,
     DynamicSignalType.IP_REDIRECT: Severity.MEDIUM,
-    DynamicSignalType.REDIRECT_LOOP: Severity.HIGH,
+    DynamicSignalType.REDIRECT_LOOP: Severity.CRITICAL,
     
-    DynamicSignalType.PASSWORD_FIELD: Severity.HIGH,
+    DynamicSignalType.PASSWORD_FIELD: Severity.MEDIUM,
     DynamicSignalType.LOGIN_FORM: Severity.MEDIUM,
-    DynamicSignalType.OTP_FIELD: Severity.HIGH,
-    DynamicSignalType.CREDIT_CARD_FIELD: Severity.HIGH,
-    DynamicSignalType.CCCD_FIELD: Severity.HIGH,
+    DynamicSignalType.OTP_FIELD: Severity.MEDIUM,
+    DynamicSignalType.CREDIT_CARD_FIELD: Severity.MEDIUM,
+    DynamicSignalType.CCCD_FIELD: Severity.MEDIUM,
     DynamicSignalType.HIDDEN_IFRAME: Severity.MEDIUM,
     DynamicSignalType.META_REFRESH: Severity.MEDIUM,
     DynamicSignalType.EVAL_USAGE: Severity.MEDIUM,
@@ -84,6 +101,18 @@ SIGNAL_SEVERITY: dict[str, str] = {
     DynamicSignalType.API_USAGE: Severity.LOW,
     DynamicSignalType.WEBSOCKET_USAGE: Severity.LOW,
     DynamicSignalType.FAILED_REQUEST: Severity.LOW,
+    
+    # Severity for new signals
+    DynamicSignalType.LOGIN_CREDENTIAL_COLLECTION: Severity.HIGH,
+    DynamicSignalType.LOGIN_REDIRECT_FLOW: Severity.HIGH,
+    DynamicSignalType.OBFUSCATED_LOGIN_PAGE: Severity.HIGH,
+    DynamicSignalType.PAYMENT_COLLECTION: Severity.HIGH,
+    DynamicSignalType.UNLISTED_EXTERNAL_SCRIPT: Severity.MEDIUM,
+    DynamicSignalType.IP_ADDRESS_EXTERNAL_SCRIPT: Severity.HIGH,
+    DynamicSignalType.CROSS_DOMAIN_FORM_ACTION: Severity.HIGH,
+    DynamicSignalType.INSECURE_FORM_ACTION: Severity.HIGH,
+    DynamicSignalType.GET_LOGIN_FORM: Severity.HIGH,
+    DynamicSignalType.EMPTY_FORM_ACTION: Severity.MEDIUM,
 }
 
 DYNAMIC_SIGNAL_WEIGHTS: dict[str, int] = {
@@ -93,7 +122,7 @@ DYNAMIC_SIGNAL_WEIGHTS: dict[str, int] = {
     DynamicSignalType.CREDIT_CARD_FIELD: 35,
     DynamicSignalType.CCCD_FIELD: 30,
     DynamicSignalType.HIDDEN_IFRAME: 15,
-    DynamicSignalType.META_REFRESH: 10,
+    DynamicSignalType.META_REFRESH: 15,
     DynamicSignalType.EVAL_USAGE: 15,
     DynamicSignalType.ATOB_USAGE: 5,
     DynamicSignalType.UNESCAPE_USAGE: 5,
@@ -101,13 +130,25 @@ DYNAMIC_SIGNAL_WEIGHTS: dict[str, int] = {
     DynamicSignalType.MULTI_REDIRECT: 20,
     DynamicSignalType.CROSS_DOMAIN_REDIRECT: 15,
     DynamicSignalType.IP_REDIRECT: 20,
-    DynamicSignalType.PRIVATE_IP_REDIRECT: 40,
-    DynamicSignalType.REDIRECT_LOOP: 40,
+    DynamicSignalType.PRIVATE_IP_REDIRECT: 80,
+    DynamicSignalType.REDIRECT_LOOP: 80,
     DynamicSignalType.THIRD_PARTY_DOMAIN: 5,
     DynamicSignalType.CDN_USAGE: 0,
     DynamicSignalType.API_USAGE: 5,
-    DynamicSignalType.WEBSOCKET_USAGE: 10,
+    DynamicSignalType.WEBSOCKET_USAGE: 5,
     DynamicSignalType.FAILED_REQUEST: 5,
+    
+    # Weights for new signals
+    DynamicSignalType.LOGIN_CREDENTIAL_COLLECTION: 45,
+    DynamicSignalType.LOGIN_REDIRECT_FLOW: 50,
+    DynamicSignalType.OBFUSCATED_LOGIN_PAGE: 50,
+    DynamicSignalType.PAYMENT_COLLECTION: 50,
+    DynamicSignalType.UNLISTED_EXTERNAL_SCRIPT: 15,
+    DynamicSignalType.IP_ADDRESS_EXTERNAL_SCRIPT: 40,
+    DynamicSignalType.CROSS_DOMAIN_FORM_ACTION: 40,
+    DynamicSignalType.INSECURE_FORM_ACTION: 30,
+    DynamicSignalType.GET_LOGIN_FORM: 30,
+    DynamicSignalType.EMPTY_FORM_ACTION: 15,
 }
 
 RISK_THRESHOLDS: dict[str, int] = {
