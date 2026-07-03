@@ -98,3 +98,14 @@ def test_build_context_success(mock_context):
     assert result.metadata["page_language"] == "en"
     assert result.metadata["redirect_count"] == 1
     assert result.metadata["has_login_form"] is True
+
+def test_build_context_with_dynamic_page_title(mock_context):
+    # Mock dynamic page attribute using object.__setattr__ to bypass Pydantic schema validation
+    class MockPage:
+        title = "Dynamic Page Title"
+    object.__setattr__(mock_context.dynamic, "page", MockPage())
+
+    html = '<html><head><title>HTML Title</title></head><body>Login</body></html>'
+    result = build_context(mock_context, html=html)
+    assert result.page_title == "Dynamic Page Title"
+

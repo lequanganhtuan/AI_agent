@@ -17,15 +17,26 @@ def build_context(context: AnalysisContext, html: Optional[str] = None) -> AIAna
     4. Collect summaries from the static, threat, and dynamic phases.
     5. Deduplicate and filter a flat list of triggered signal names.
     """
-    # 1. URL & Final URL
-    url = context.validation.normalized_url or ""
-    final_url = url
-    if context.dynamic and context.dynamic.redirects and context.dynamic.redirects.redirect_chain:
-        final_url = context.dynamic.redirects.redirect_chain[-1]
+    # Extract local bindings to reduce structural coupling
+    dynamic = context.dynamic
+    static = context.static
+    threat = context.threat_intelligence
+    validation = context.validation
 
-    # 2. Page Title Extraction from HTML
+    # 1. URL & Final URL
+    url = validation.normalized_url if validation else ""
+    final_url = url
+    redirects = dynamic.redirects if dynamic else None
+    if redirects and redirects.redirect_chain:
+        final_url = redirects.redirect_chain[-1]
+
+    # 2. Page Title Extraction from Phase 4 dynamic context or HTML fallback
     page_title = ""
-    if html:
+    dynamic_page = getattr(dynamic, "page", None) if dynamic else None
+    if dynamic_page:
+        page_title = getattr(dynamic_page, "title", "") or ""
+
+    if not page_title and html:
         try:
             soup = BeautifulSoup(html, "html.parser")
             title_tag = soup.find("title")
@@ -38,43 +49,46 @@ def build_context(context: AnalysisContext, html: Optional[str] = None) -> AIAna
     extracted_text = extract_text(html) if html else ""
 
     # 4. Screenshot Base64 encoding
-    screenshot_path = context.dynamic.screenshot_path if context.dynamic else None
+    screenshot_path = dynamic.screenshot_path if dynamic else None
     base64_screenshot = encode_screenshot(screenshot_path) if screenshot_path else None
 
     # 5. Legitimate Domain Target extraction (e.g. typosquatting target)
     legitimate_domain = None
-    if context.static and context.static.brand:
-        legitimate_domain = context.static.brand.typosquatting_target
+    brand = static.brand if static else None
+    if brand:
+        legitimate_domain = brand.typosquatting_target
 
     # 6. Aggregate Summaries from previous phases
+    static_risk = static.risk if static else None
     static_summary = ""
-    if context.static and context.static.risk and context.static.risk.summary:
-        static_summary = "\n".join(context.static.risk.summary)
+    if static_risk and static_risk.summary:
+        static_summary = "\n".join(static_risk.summary)
 
+    threat_risk = threat.risk if threat else None
     threat_summary = ""
-    if context.threat_intelligence and context.threat_intelligence.risk:
-        threat_summary = context.threat_intelligence.risk.summary
+    if threat_risk:
+        threat_summary = threat_risk.summary
 
     dynamic_summary = ""
-    if context.dynamic and context.dynamic.summary:
-        dynamic_summary = "\n".join(context.dynamic.summary)
+    if dynamic and dynamic.summary:
+        dynamic_summary = "\n".join(dynamic.summary)
 
     # 7. Collect and deduplicate signal identifier strings
     signals_set = set()
-    if context.validation and context.validation.signals:
-        for sig in context.validation.signals:
+    if validation and validation.signals:
+        for sig in validation.signals:
             signals_set.add(sig)
 
-    if context.static and context.static.risk and context.static.risk.triggered_signals:
-        for sig in context.static.risk.triggered_signals:
+    if static_risk and static_risk.triggered_signals:
+        for sig in static_risk.triggered_signals:
             signals_set.add(sig)
 
-    if context.threat_intelligence and context.threat_intelligence.risk and context.threat_intelligence.risk.triggered_signals:
-        for sig in context.threat_intelligence.risk.triggered_signals:
+    if threat_risk and threat_risk.triggered_signals:
+        for sig in threat_risk.triggered_signals:
             signals_set.add(sig)
 
-    if context.dynamic and context.dynamic.signals:
-        for sig in context.dynamic.signals:
+    if dynamic and dynamic.signals:
+        for sig in dynamic.signals:
             signals_set.add(sig.signal)
 
     important_signals = sorted(list(signals_set))
