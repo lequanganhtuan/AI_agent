@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import Any, Optional, Type
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 # Strict Enum Definitions
 class RiskLevel(str, Enum):
@@ -72,7 +72,7 @@ class LLMOutput(BaseModel):
     is_phishing: bool
     fraud_category: FraudCategory
     detected_brand: Optional[str] = None
-    brand_confidence: float
+    brand_confidence: float = Field(..., ge=0.0, le=1.0)
     reasoning: list[str]
     summary: str
     recommended_action: RecommendedAction
@@ -85,7 +85,7 @@ class ContentAnalysisResult(BaseModel):
     website_purpose: str
     detected_brand: Optional[str] = None
     fraud_category: FraudCategory
-    confidence: float
+    confidence: float = Field(..., ge=0.0, le=1.0)
     summary: str
     reasoning: list[str]
     recommended_action: RecommendedAction
@@ -95,13 +95,13 @@ class ContentAnalysisResult(BaseModel):
 class AISignal(BaseModel):
     signal: AISignalType
     severity: Severity
-    confidence: float
+    confidence: float = Field(..., ge=0.0, le=1.0)
     description: str
 
 
 # Model 6: AIRisk
 class AIRisk(BaseModel):
-    score: int
+    score: float
     level: RiskLevel
     summary: str
 

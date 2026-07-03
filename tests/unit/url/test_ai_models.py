@@ -97,11 +97,11 @@ def test_ai_signal():
 
 def test_ai_risk():
     risk = AIRisk(
-        score=85,
+        score=85.5,
         level=RiskLevel.HIGH,
         summary="High probability of phishing impersonating Chase Bank"
     )
-    assert risk.score == 85
+    assert risk.score == 85.5
     assert risk.level == RiskLevel.HIGH
 
 def test_ai_analysis_result():
@@ -124,11 +124,57 @@ def test_ai_analysis_result():
             )
         ],
         risk=AIRisk(
-            score=90,
+            score=90.0,
             level=RiskLevel.HIGH,
             summary="Impersonates Google login"
         )
     )
     assert res.content.detected_brand == "Google"
     assert len(res.signals) == 1
-    assert res.risk.score == 90
+    assert res.risk.score == 90.0
+
+def test_confidence_range_validation():
+    from pydantic import ValidationError
+
+    # Test LLMOutput brand_confidence boundary
+    output_data = {
+        "website_purpose": "Test site",
+        "is_phishing": False,
+        "fraud_category": FraudCategory.LEGITIMATE,
+        "detected_brand": None,
+        "brand_confidence": 1.5,  # Invalid (> 1.0)
+        "reasoning": [],
+        "summary": "Test summary",
+        "recommended_action": RecommendedAction.ALLOW,
+        "risk_level": RiskLevel.LOW,
+        "findings": []
+    }
+    with pytest.raises(ValidationError):
+        LLMOutput(**output_data)
+
+    output_data["brand_confidence"] = -0.5  # Invalid (< 0.0)
+    with pytest.raises(ValidationError):
+        LLMOutput(**output_data)
+
+    # Test ContentAnalysisResult confidence boundary
+    res_data = {
+        "website_purpose": "Test site",
+        "detected_brand": None,
+        "fraud_category": FraudCategory.LEGITIMATE,
+        "confidence": -0.1,  # Invalid
+        "summary": "Test summary",
+        "reasoning": [],
+        "recommended_action": RecommendedAction.ALLOW
+    }
+    with pytest.raises(ValidationError):
+        ContentAnalysisResult(**res_data)
+
+    # Test AISignal confidence boundary
+    with pytest.raises(ValidationError):
+        AISignal(
+            signal=AISignalType.OTHER,
+            severity=Severity.LOW,
+            confidence=1.1,  # Invalid
+            description="Test signal"
+        )
+
