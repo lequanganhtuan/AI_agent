@@ -39,9 +39,8 @@ class AIRiskCalculator:
         for signal in signals:
             weight = SIGNAL_WEIGHT_MAP.get(signal.signal, 0.0)
             
-            # Severity mapping (coerce to uppercase to handle raw string alignment)
-            severity_str = signal.severity.name if hasattr(signal.severity, "name") else str(signal.severity).upper()
-            multiplier = SEVERITY_MULTIPLIER.get(severity_str, 1.0)
+            # Severity mapping using Enum directly
+            multiplier = SEVERITY_MULTIPLIER.get(signal.severity, 1.0)
             
             signal_score = weight * multiplier * signal.confidence
             total_score += signal_score
@@ -82,4 +81,4 @@ class AIRiskCalculator:
         else:
             list_str = ", ".join(unique_names[:-1]) + f" and {unique_names[-1]}"
 
-        return f"Detected {len(signals)} AI security indicators including {list_str}."
+        return f"Detected {len(unique_names)} AI security indicators including {list_str}."

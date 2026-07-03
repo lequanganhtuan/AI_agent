@@ -58,6 +58,17 @@ class TestAIRiskCalculator:
         # Summary alphabetical sorting: "Brand Impersonation, Data Harvesting and Fake Login Page"
         assert "Brand Impersonation, Data Harvesting and Fake Login Page" in risk.summary
 
+    def test_calculate_duplicate_signals_summary(self, calculator):
+        # Pass duplicate signal types to verify summary uses unique indicator count
+        signals = [
+            AISignal(signal=AISignalType.BRAND_IMPERSONATION, severity=Severity.HIGH, confidence=1.0, description="Brand 1"),
+            AISignal(signal=AISignalType.BRAND_IMPERSONATION, severity=Severity.LOW, confidence=1.0, description="Brand 2"),
+            AISignal(signal=AISignalType.FAKE_LOGIN_PAGE, severity=Severity.MEDIUM, confidence=1.0, description="Fake Login")
+        ]
+        risk = calculator.calculate(signals)
+        # Expected count of unique indicators is 2 (Brand Impersonation and Fake Login Page)
+        assert risk.summary.startswith("Detected 2 AI security indicators")
+
     def test_risk_level_boundaries(self, calculator):
         # LOW (<= 25)
         sig_low = AISignal(signal=AISignalType.FAKE_TRUST_SIGNAL, severity=Severity.LOW, confidence=1.0, description="Trust Badge")

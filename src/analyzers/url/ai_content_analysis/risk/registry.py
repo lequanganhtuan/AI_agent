@@ -1,4 +1,4 @@
-from src.analyzers.url.ai_content_analysis.models import AISignalType
+from src.analyzers.url.ai_content_analysis.models import AISignalType, Severity
 
 # Weights assigned to each signal type
 SIGNAL_WEIGHT_MAP = {
@@ -13,10 +13,10 @@ SIGNAL_WEIGHT_MAP = {
 
 # Multipliers assigned to each severity level
 SEVERITY_MULTIPLIER = {
-    "LOW": 1.0,
-    "MEDIUM": 1.2,
-    "HIGH": 1.5,
-    "CRITICAL": 2.0
+    Severity.LOW: 1.0,
+    Severity.MEDIUM: 1.2,
+    Severity.HIGH: 1.5,
+    Severity.CRITICAL: 2.0
 }
 
 # Score threshold limits mapping to RiskLevel
