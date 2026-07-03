@@ -30,6 +30,8 @@ def build_prompt(analysis_input: AIAnalysisInput) -> PromptRequest:
         system_prompt=SYSTEM_PROMPT,
         user_prompt=user_prompt,
         response_schema=LLMOutput,
-        vision_enabled=vision_enabled
+        vision_enabled=vision_enabled,
+        screenshot_path=analysis_input.screenshot_path
     )
+
 

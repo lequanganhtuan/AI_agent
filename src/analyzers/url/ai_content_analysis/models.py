@@ -64,6 +64,8 @@ class PromptRequest(BaseModel):
     user_prompt: str
     response_schema: Type[BaseModel]
     vision_enabled: bool
+    screenshot_path: Optional[str] = None
+
 
 
 # Model 3: LLMOutput
