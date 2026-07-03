@@ -223,6 +223,13 @@ class DOMAnalysis(BaseModel):
     has_otp_field: bool = False
     has_cccd_field: bool = False
     has_credit_card_field: bool = False
+    
+    # Deep Form Inspection fields
+    form_actions: list[str] = Field(default_factory=list)
+    has_cross_domain_form: bool = False
+    has_insecure_form_action: bool = False
+    has_get_login_form: bool = False
+    has_empty_action_form: bool = False
 
     iframe_count: int = 0
     hidden_iframe_count: int = 0
@@ -237,6 +244,12 @@ class DOMAnalysis(BaseModel):
     inline_script_count: int = 0
     external_script_count: int = 0
     external_scripts: list[str] = Field(default_factory=list)
+    
+    # Qualitative script classification fields
+    first_party_scripts: list[str] = Field(default_factory=list)
+    cdn_scripts: list[str] = Field(default_factory=list)
+    unlisted_scripts: list[str] = Field(default_factory=list)
+    ip_scripts: list[str] = Field(default_factory=list)
 
     image_sources: list[str] = Field(default_factory=list)
     favicon_url: str | None = None

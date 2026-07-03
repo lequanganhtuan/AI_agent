@@ -110,9 +110,9 @@ class TestThreatIntelOrchestrator:
             
             res = await orchestrator.analyze_url(validation_result)
             assert isinstance(res, ThreatIntelligenceResult)
-            # Blacklist hits: vt=1, gsb=1 -> BLACKLIST_MATCH triggered -> score = 40
-            assert res.risk.score == 40
-            assert res.risk.risk_level == "medium"
+            # Blacklist hits: vt=1, gsb=1 -> BLACKLIST_MATCH triggered -> score = 100
+            assert res.risk.score == 100
+            assert res.risk.risk_level == "high"
             assert "BLACKLIST_MATCH" in res.risk.triggered_signals
             assert "VT_CONFIRMED_MALICIOUS" in res.risk.triggered_signals
             assert "GOOGLE_BLACKLIST" in res.risk.triggered_signals
@@ -164,11 +164,8 @@ class TestThreatIntelOrchestrator:
             assert isinstance(result, ThreatIntelligenceResult)
             
             # Check risk scoring & thresholds:
-            # - Blacklist hit (VT, GSB, URLHaus) -> Score = 40 (weight)
-            # - Behavioral hit (URLScan score >= 80) -> Score = 25 (weight)
-            # - Reputation hit (IPQS score >= 90) -> Score = 15 (weight)
-            # Total score = 40 + 25 + 15 = 80
-            assert result.risk.score == 80
+            # - Critical Blacklist hits -> Score = 100
+            assert result.risk.score == 100
             assert result.risk.risk_level == "high"
             
             # Check triggered signal mapping (Layer 1 normalization)

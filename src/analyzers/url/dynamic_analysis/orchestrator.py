@@ -110,8 +110,17 @@ class DynamicAnalysisOrchestrator:
                 signal_time_ms = (time.perf_counter() - start_time) * 1000
                 logger.info("[DynamicAnalysisOrchestrator] Signal Generation processing latency: %.2f ms", signal_time_ms)
 
-                start_time = time.perf_counter()
-                risk_res = self.risk_calculator.calculate(signals)
+                is_trusted = False
+                if context.static and getattr(context.static, "brand", None):
+                    if getattr(context.static.brand, "legitimate_domain_match", False):
+                        is_trusted = True
+                    from src.analyzers.url.static.config import BrandConfig
+                    components = getattr(context.validation, "components", None)
+                    domain = getattr(components, "full_domain", "") if components else ""
+                    if domain and any(domain == trusted or domain.endswith("." + trusted) for trusted in BrandConfig.TRUSTED_PLATFORMS):
+                        is_trusted = True
+
+                risk_res = self.risk_calculator.calculate(signals, is_trusted=is_trusted)
                 risk_time_ms = (time.perf_counter() - start_time) * 1000
                 logger.info("[DynamicAnalysisOrchestrator] Risk Calculation latency: %.2f ms", risk_time_ms)
 

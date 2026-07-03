@@ -65,8 +65,9 @@ async def run_scenario_2_blacklist():
               
               result = await orchestrator.analyze_url(val_res)
               print(json.dumps(result.risk.model_dump(), indent=2))
-              # Blacklist matches -> score = 40, level = medium
-              assert result.risk.score == 40
+              # Blacklist matches -> score = 100, level = high
+              assert result.risk.score == 100
+              assert result.risk.risk_level == "high"
               assert "VT_CONFIRMED_MALICIOUS" in result.risk.triggered_signals
               assert "GOOGLE_BLACKLIST" in result.risk.triggered_signals
 
@@ -92,8 +93,9 @@ async def run_scenario_3_behavioral():
               
               result = await orchestrator.analyze_url(val_res)
               print(json.dumps(result.risk.model_dump(), indent=2))
-              # Behavioral risk matched -> score = 25, level = medium
-              assert result.risk.score == 25
+              # Behavioral risk matched -> score = 95, level = high
+              assert result.risk.score == 95
+              assert result.risk.risk_level == "high"
               assert "PHISHING_FORM_DETECTED" in result.risk.triggered_signals
 
 async def run_scenario_4_reputation():
@@ -118,8 +120,9 @@ async def run_scenario_4_reputation():
               
               result = await orchestrator.analyze_url(val_res)
               print(json.dumps(result.risk.model_dump(), indent=2))
-              # Reputation risk matched -> score = 15, level = low
-              assert result.risk.score == 15
+              # Reputation risk matched -> score = 75, level = high
+              assert result.risk.score == 75
+              assert result.risk.risk_level == "high"
               assert "ABUSEIPDB_HIGH_CONFIDENCE_MALICIOUS" in result.risk.triggered_signals
               assert "ABUSEIPDB_DATACENTER_HOSTING" in result.risk.triggered_signals
 
@@ -205,8 +208,8 @@ async def run_scenario_7_full_compromise():
               
               result = await orchestrator.analyze_url(val_res)
               print(json.dumps(result.risk.model_dump(), indent=2))
-              # Blacklist (40) + Behavioral (25) + Reputation (15) = 80
-              assert result.risk.score == 80
+              # Max score = 100, level = high
+              assert result.risk.score == 100
               assert result.risk.risk_level == "high"
               assert "BLACKLIST_MATCH" in result.risk.triggered_signals
               assert "VT_CONFIRMED_MALICIOUS" in result.risk.triggered_signals

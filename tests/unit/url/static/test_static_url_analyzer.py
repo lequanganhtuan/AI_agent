@@ -63,7 +63,7 @@ def test_static_url_analyzer_successful_flow(monkeypatch, static_analyzer, mock_
     # Capture data to test the orchestration pipeline
     captured_inputs = {}
 
-    def fake_calculate(lexical, brand, pattern, tld, typo):
+    def fake_calculate(lexical, brand, pattern, tld, typo, validation_result=None):
         captured_inputs["lexical"] = lexical
         captured_inputs["brand"] = brand
         captured_inputs["pattern"] = pattern
