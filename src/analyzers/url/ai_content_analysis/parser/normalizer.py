@@ -55,5 +55,6 @@ class AIResponseNormalizer:
             confidence=output.brand_confidence,  # Map LLM's brand confidence directly to the domain confidence
             summary=clean_summary,
             reasoning=clean_reasoning,
+            findings=clean_findings,
             recommended_action=output.recommended_action
         )

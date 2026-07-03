@@ -82,6 +82,7 @@ def test_content_analysis_result():
         "confidence": 0.99,
         "summary": "Clean website",
         "reasoning": ["No threats found"],
+        "findings": ["No threats found"],
         "recommended_action": RecommendedAction.ALLOW
     }
     model = ContentAnalysisResult(**res_data)
@@ -116,6 +117,7 @@ def test_ai_analysis_result():
             confidence=0.95,
             summary="Impersonates Google login",
             reasoning=["Google branding used"],
+            findings=["Google logo usage"],
             recommended_action=RecommendedAction.BLOCK
         ),
         signals=[
@@ -167,6 +169,7 @@ def test_confidence_range_validation():
         "confidence": -0.1,  # Invalid
         "summary": "Test summary",
         "reasoning": [],
+        "findings": [],
         "recommended_action": RecommendedAction.ALLOW
     }
     with pytest.raises(ValidationError):

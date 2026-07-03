@@ -91,7 +91,9 @@ class ContentAnalysisResult(BaseModel):
     confidence: float = Field(..., ge=0.0, le=1.0)
     summary: str
     reasoning: list[str]
+    findings: list[str]
     recommended_action: RecommendedAction
+
 
 
 # Model 5: AISignal

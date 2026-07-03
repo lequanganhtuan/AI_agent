@@ -91,6 +91,8 @@ class TestNormalizer:
         assert result.confidence == 0.95
         assert result.summary == "High probability phishing attempt targeting PayPal accounts."
         assert result.reasoning == ["Spoofed PayPal logo", "Credential exfiltration form"]
+        assert result.findings == ["Fake login inputs", "Suspicious redirection"]
+
 
     def test_normalizer_retains_unknown_brand(self, valid_llm_output_data):
         normalizer = AIResponseNormalizer()
