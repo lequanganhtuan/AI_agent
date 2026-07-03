@@ -112,9 +112,11 @@ class AIRisk(BaseModel):
 
 # Model 7: AIAnalysisResult
 class AIAnalysisResult(BaseModel):
-    content: ContentAnalysisResult
-    signals: list[AISignal]
-    risk: AIRisk
+    content: Optional[ContentAnalysisResult] = None
+    signals: list[AISignal] = []
+    risk: Optional[AIRisk] = None
     system_prompt: Optional[str] = None
     user_prompt: Optional[str] = None
+    error: Optional[str] = None
+
 

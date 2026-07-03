@@ -386,7 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- 4. POPULATE AI CONTENT ANALYSIS (PHASE 5) ---
         const aiResult = data.ai;
-        if (aiResult) {
+        if (aiResult && !aiResult.error) {
             const aiScore = aiResult.risk.score;
             const aiLevel = aiResult.risk.level || 'LOW';
             
@@ -498,19 +498,29 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('sys-prompt-text').value = aiResult.system_prompt || '';
             document.getElementById('user-prompt-text').value = aiResult.user_prompt || '';
         } else {
-            // Default when no ai data
+            // Default when no ai data or error occurred
             document.getElementById('ai-score-path').setAttribute('stroke-dasharray', '0, 100');
             document.getElementById('ai-score-value').textContent = '0';
-            document.getElementById('ai-risk-level-text').textContent = 'UNKNOWN';
-            document.getElementById('ai-website-purpose').textContent = '-';
+            document.getElementById('ai-risk-level-text').textContent = aiResult && aiResult.error ? 'ERROR' : 'UNKNOWN';
+            
+            // Show error message inside website purpose
+            if (aiResult && aiResult.error) {
+                document.getElementById('ai-website-purpose').innerHTML = `<span style="color: var(--risk-high); font-weight: 600;">AI analysis unavailable: API timeout/credentials error.</span>`;
+                document.getElementById('ai-reasoning-details').innerHTML = `<div class="bullet-item" style="color: var(--text-muted); font-size: 13px;">The external LLM provider returned an exception during analysis. You can still inspect and manually test the computed prompts in the Gemini Web Interface below.</div>`;
+            } else {
+                document.getElementById('ai-website-purpose').textContent = '-';
+                document.getElementById('ai-reasoning-details').innerHTML = '<div class="bullet-item">No reasoning telemetry compiled.</div>';
+            }
+            
             document.getElementById('ai-detected-brand').textContent = '-';
             document.getElementById('ai-fraud-category').textContent = '-';
             document.getElementById('ai-brand-confidence').textContent = '-';
-            document.getElementById('ai-reasoning-details').innerHTML = '<div class="bullet-item">No reasoning telemetry compiled.</div>';
             document.getElementById('ai-findings-details').innerHTML = '<div class="bullet-item">No indicators generated.</div>';
             document.getElementById('ai-signals-badge-container').innerHTML = '<span class="no-signals">No indicators reported.</span>';
-            document.getElementById('sys-prompt-text').value = 'System prompt will generate after analysis...';
-            document.getElementById('user-prompt-text').value = 'User prompt will generate after analysis...';
+            
+            // Still show generated prompts if they exist
+            document.getElementById('sys-prompt-text').value = aiResult ? (aiResult.system_prompt || '') : 'System prompt will generate after analysis...';
+            document.getElementById('user-prompt-text').value = aiResult ? (aiResult.user_prompt || '') : 'User prompt will generate after analysis...';
         }
         
         // Show results

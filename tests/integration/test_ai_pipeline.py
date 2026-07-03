@@ -85,22 +85,28 @@ async def test_check_1_happy_path_end_to_end(base_context):
 
 @pytest.mark.anyio
 async def test_check_2_invalid_json(base_context):
-    """Check 2: Parser raises LLMResponseParseError if client returns non-JSON."""
+    """Check 2: Parser stores LLMResponseParseError in context.ai.error if client returns non-JSON."""
     orchestrator = AIContentAnalysisOrchestrator()
     orchestrator.service.client.generate = AsyncMock(return_value="Hello, this is not JSON.")
 
-    with pytest.raises(LLMResponseParseError, match="JSON structure"):
-        await orchestrator.analyze(base_context, html="<html></html>")
+    res_context = await orchestrator.analyze(base_context, html="<html></html>")
+    assert res_context.ai is not None
+    assert "Failed to parse raw text response into JSON structure" in res_context.ai.error
+    assert res_context.ai.system_prompt is not None
+    assert res_context.ai.user_prompt is not None
 
 
 @pytest.mark.anyio
 async def test_check_3_invalid_schema(base_context):
-    """Check 3: Parser raises LLMResponseParseError on incomplete schema structure."""
+    """Check 3: Parser stores LLMResponseParseError in context.ai.error on incomplete schema structure."""
     orchestrator = AIContentAnalysisOrchestrator()
     orchestrator.service.client.generate = AsyncMock(return_value=INVALID_SCHEMA_RESPONSE)
 
-    with pytest.raises(LLMResponseParseError, match="strict contract schema of LLMOutput"):
-        await orchestrator.analyze(base_context, html="<html></html>")
+    res_context = await orchestrator.analyze(base_context, html="<html></html>")
+    assert res_context.ai is not None
+    assert "JSON payload does not align with the strict contract schema of LLMOutput" in res_context.ai.error
+    assert res_context.ai.system_prompt is not None
+    assert res_context.ai.user_prompt is not None
 
 
 @pytest.mark.anyio
@@ -122,24 +128,25 @@ async def test_check_4_retry_logic(base_context):
 
     # Verification
     assert res_context.ai is not None
+    assert res_context.ai.error is None
     assert mock_generate.call_count == 3
 
 
 @pytest.mark.anyio
 async def test_check_5_fatal_error(base_context):
-    """Check 5: Fatal error is thrown immediately without retry."""
+    """Check 5: Fatal error is logged and stored in context.ai.error immediately without retry."""
     orchestrator = AIContentAnalysisOrchestrator()
     
     # Mock _generate_once to raise a fatal validation error
     mock_generate = AsyncMock()
-    # We raise validation or connection errors (non-retryable errors are fatal, e.g. 401 unauthorized)
-    # The client does not retry fatal errors like 401. Let's verify by patching config or response code status
     mock_generate.side_effect = ValueError("Fatal 401 Unauthorized Credentials")
     orchestrator.service.client._generate_once = mock_generate
 
-    with pytest.raises(ValueError, match="Fatal 401"):
-        await orchestrator.analyze(base_context, html="<html></html>")
-
+    res_context = await orchestrator.analyze(base_context, html="<html></html>")
+    assert res_context.ai is not None
+    assert "Fatal 401" in res_context.ai.error
+    assert res_context.ai.system_prompt is not None
+    assert res_context.ai.user_prompt is not None
     assert mock_generate.call_count == 1
 
 
