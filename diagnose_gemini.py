@@ -11,112 +11,136 @@ load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
 print(f"Loaded GEMINI_API_KEY: {api_key[:12] if api_key else 'None'}...")
 
+# Strict JSON Schema matching the production LLMOutput
+RESPONSE_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "website_purpose": {"type": "STRING"},
+        "is_phishing": {"type": "BOOLEAN"},
+        "fraud_category": {"type": "STRING", "enum": ["LEGITIMATE", "PHISHING", "BRAND_IMPERSONATION", "SCAM", "MALWARE_DISTRIBUTION"]},
+        "detected_brand": {"type": "STRING"},
+        "brand_confidence": {"type": "NUMBER"},
+        "reasoning": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "summary": {"type": "STRING"},
+        "recommended_action": {"type": "STRING", "enum": ["ALLOW", "WARN", "BLOCK", "MONITOR"]},
+        "risk_level": {"type": "STRING", "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]},
+        "findings": {"type": "ARRAY", "items": {"type": "STRING"}}
+    },
+    "required": [
+        "website_purpose", "is_phishing", "fraud_category", "detected_brand",
+        "brand_confidence", "reasoning", "summary", "recommended_action", "risk_level", "findings"
+    ]
+}
+
+SYSTEM_PROMPT = "You are a professional security analysis LLM. Analyze the provided URL context and return JSON matching the schema."
+USER_PROMPT_PRODUCTION = "Target URL: https://google.com\nTitle: Google\n\nAnalyze this URL context to check if it impersonates any brand."
+
+async def run_step(step_name, fn):
+    print(f"\n--- {step_name} ---")
+    start = time.perf_counter()
+    try:
+        res = await fn()
+        duration = time.perf_counter() - start
+        print(f"[OK] Success (took {duration:.2f} seconds)")
+        print(f"Response: {res[:200]}...")
+        return True
+    except Exception as e:
+        duration = time.perf_counter() - start
+        print(f"[FAIL] Failed after {duration:.2f} seconds: {str(e)}")
+        return False
+
 async def main():
     if not api_key:
         print("Error: GEMINI_API_KEY not set in environment or .env file.")
         return
 
-    # Use standard Client from google-genai
     client = genai.Client(api_key=api_key)
+    model = "gemini-2.5-flash"
 
-    # Test 1: Independent SDK Call
-    print("\n--- Test 1: Testing Gemini SDK independently ---")
-    try:
-        start_time = time.perf_counter()
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
+    # Step 1: Independent Gemini SDK Test (Async)
+    async def step1():
+        response = await client.aio.models.generate_content(
+            model=model,
             contents="Hello"
         )
-        duration = time.perf_counter() - start_time
-        print(f"[OK] Success (took {duration:.2f} seconds)")
-        print(f"Response: {response.text.strip()}")
-    except Exception as e:
-        print(f"[FAIL] Failed Test 1: {str(e)}")
-        print("\nRoot cause suggestion:")
-        print("- Verify that your GEMINI_API_KEY is correct. (If it starts with 'AQ.', ensure it is a valid Gemini Developer key, typically starting with 'AIzaSy'.)")
-        print("- Check proxy settings if you are behind an enterprise firewall.")
+        return response.text or ""
+    
+    s1_ok = await run_step("Step 1: Independent Gemini SDK Test (Async)", step1)
+    if not s1_ok:
+        print("\nStep 1 Failed. Stopping diagnostics. Check your API key, internet connection, or quota limits.")
         return
 
-    # Test 2: Text-only Minimal Prompt
-    print("\n--- Test 2: Text-only Minimal Prompt ---")
-    try:
-        start_time = time.perf_counter()
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents="Hello! Please reply with a simple 'Hello' back."
+    # Step 2: Test the Project with a Minimal Prompt
+    async def step2():
+        response = await client.aio.models.generate_content(
+            model=model,
+            contents="Hello"
         )
-        duration = time.perf_counter() - start_time
-        print(f"[OK] Success (took {duration:.2f} seconds)")
-        print(f"Response: {response.text.strip()}")
-    except Exception as e:
-        print(f"[FAIL] Failed Test 2: {str(e)}")
+        return response.text or ""
+    
+    await run_step("Step 2: Project with a Minimal Prompt", step2)
 
-    # Test 3: Production Prompt without image
-    print("\n--- Test 3: Production Prompt without image ---")
-    mock_system_prompt = "You are a professional security analysis LLM. Analyze the provided HTML context. Return JSON only. Never speculate."
-    mock_user_prompt = "Target URL: https://example.com\nTitle: Demo Page\n\nAnalyze this URL context to check if it impersonates any brand."
-    try:
-        start_time = time.perf_counter()
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
+    # Step 3: Reintroduce the System Prompt
+    async def step3():
+        response = await client.aio.models.generate_content(
+            model=model,
             config=types.GenerateContentConfig(
-                system_instruction=mock_system_prompt,
-                response_mime_type="application/json"
+                system_instruction=SYSTEM_PROMPT
             ),
-            contents=mock_user_prompt
+            contents="Hello"
         )
-        duration = time.perf_counter() - start_time
-        print(f"[OK] Success (took {duration:.2f} seconds)")
-        print(f"Response: {response.text.strip()}")
-    except Exception as e:
-        print(f"[FAIL] Failed Test 3: {str(e)}")
+        return response.text or ""
 
-    # Test 4: Image Payload Only
-    print("\n--- Test 4: Image Payload Only ---")
-    # Tiny 1x1 black PNG
+    await run_step("Step 3: Reintroduce the System Prompt", step3)
+
+    # Step 4: Reintroduce the response_schema
+    async def step4():
+        response = await client.aio.models.generate_content(
+            model=model,
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                response_mime_type="application/json",
+                response_schema=RESPONSE_SCHEMA
+            ),
+            contents="Hello"
+        )
+        return response.text or ""
+
+    await run_step("Step 4: Reintroduce the response_schema", step4)
+
+    # Step 5: Reintroduce the Actual User Prompt
+    async def step5():
+        response = await client.aio.models.generate_content(
+            model=model,
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                response_mime_type="application/json",
+                response_schema=RESPONSE_SCHEMA
+            ),
+            contents=USER_PROMPT_PRODUCTION
+        )
+        return response.text or ""
+
+    await run_step("Step 5: Reintroduce the Actual User Prompt", step5)
+
+    # Step 6: Finally, Reintroduce the Screenshot
     tiny_png_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
     image_bytes = base64.b64decode(tiny_png_b64)
-    try:
-        start_time = time.perf_counter()
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[
-                types.Part.from_bytes(
-                    data=image_bytes,
-                    mime_type="image/png"
-                ),
-                "Describe this image."
-            ]
-        )
-        duration = time.perf_counter() - start_time
-        print(f"[OK] Success (took {duration:.2f} seconds)")
-        print(f"Response: {response.text.strip()}")
-    except Exception as e:
-        print(f"[FAIL] Failed Test 4: {str(e)}")
+    image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
 
-    # Test 5: Full Prompt + Screenshot
-    print("\n--- Test 5: Full Prompt + Tiny Screenshot ---")
-    try:
-        start_time = time.perf_counter()
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
+    async def step6():
+        response = await client.aio.models.generate_content(
+            model=model,
             config=types.GenerateContentConfig(
-                system_instruction=mock_system_prompt,
-                response_mime_type="application/json"
+                system_instruction=SYSTEM_PROMPT,
+                response_mime_type="application/json",
+                response_schema=RESPONSE_SCHEMA
             ),
-            contents=[
-                types.Part.from_bytes(
-                    data=image_bytes,
-                    mime_type="image/png"
-                ),
-                mock_user_prompt
-            ]
+            contents=[USER_PROMPT_PRODUCTION, image_part]
         )
-        duration = time.perf_counter() - start_time
-        print(f"[OK] Success (took {duration:.2f} seconds)")
-        print(f"Response: {response.text.strip()}")
-    except Exception as e:
-        print(f"[FAIL] Failed Test 5: {str(e)}")
+        return response.text or ""
+
+    await run_step("Step 6: Finally, Reintroduce the Screenshot", step6)
 
 if __name__ == "__main__":
     asyncio.run(main())

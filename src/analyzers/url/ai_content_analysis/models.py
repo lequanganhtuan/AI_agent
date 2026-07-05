@@ -58,7 +58,6 @@ class AIAnalysisInput(BaseModel):
 # Model 2: PromptRequest
 class PromptRequest(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
     system_prompt: str
     user_prompt: str
     response_schema: Type[BaseModel]

@@ -85,6 +85,7 @@ class TestGeminiClientPayload:
         mock_response.text = "Analysis Result String"
         mock_response.usage_metadata = MagicMock(
             prompt_token_count=10,
+            candidates_token_count=5,
             response_token_count=5,
             total_token_count=15
         )

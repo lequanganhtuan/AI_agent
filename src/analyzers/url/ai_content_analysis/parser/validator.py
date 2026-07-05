@@ -26,8 +26,8 @@ class AIResponseValidator:
             raise LLMResponseValidationError("The 'reasoning' telemetry array cannot be blank or empty.")
 
         # 2. Key findings array safety validation
-        if output.findings is None:
-            raise LLMResponseValidationError("The 'findings' collector cannot be a null value or missing.")
+        if not output.findings:
+            raise LLMResponseValidationError("The 'findings' collector cannot be empty or missing.")
 
         # 3. Dynamic textual summary safety validation
         if not output.summary or not output.summary.strip():

@@ -52,13 +52,15 @@ class GeminiClient(BaseLLMClient):
                 raise AIContentAnalysisError(f"Failed to decode base64 screenshot payload: {str(e)}") from e
 
         # 2. Build configuration with timeout limits and response schema
+        # Note: types.HttpOptions timeout is in milliseconds
+        timeout_ms = int(config.timeout_seconds * 1000) if config.timeout_seconds else None
         gen_config = types.GenerateContentConfig(
             system_instruction=request.system_prompt,
             temperature=config.temperature,
             max_output_tokens=config.max_tokens,
             response_mime_type="application/json",
             response_schema=request.response_schema,
-            http_options=types.HttpOptions(timeout=config.timeout_seconds)
+            http_options=types.HttpOptions(timeout=timeout_ms)
         )
 
         # 3. Call Gemini async models API and measure execution duration
@@ -77,9 +79,9 @@ class GeminiClient(BaseLLMClient):
             # 4. Safe telemetry log mapping (No prompts, keys, or screenshots)
             usage = getattr(response, "usage_metadata", None)
             usage_info = {
-                "prompt_tokens": usage.prompt_token_count,
-                "completion_tokens": usage.response_token_count,
-                "total_tokens": usage.total_token_count
+                "prompt_tokens": getattr(usage, "prompt_token_count", 0),
+                "completion_tokens": getattr(usage, "candidates_token_count", getattr(usage, "response_token_count", 0)),
+                "total_tokens": getattr(usage, "total_token_count", 0)
             } if usage else None
 
             logger.info(

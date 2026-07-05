@@ -163,12 +163,15 @@ A live headless crawler visits the site inside a secure Playwright environment:
 
 ![Dynamic Sandbox Analysis](artifacts/phase4_dynamic.png)
 
-### Phase 5: Web UI Dashboard
-A rich dashboard displays the results:
-*   **Interactive Tabs**: Separate tabs for **Static**, **Threat Intel**, and **Dynamic** logs.
-*   **Risk Metrics**: Animated circular gauge rendering consolidated risk ratings (Clean, Suspicious, Malicious).
-*   **Visual Timeline**: Interactive redirection path timeline detailing jump status, latency, and apex domains.
-*   **Screenshot Preview**: Embedded preview pane displaying full-page visual evidence.
+### Phase 5: AI Content Analysis & Web UI Dashboard
+An LLM content analyzer (Google Gemini) and interactive dashboard process the combined data to produce a final security verdict:
+*   **LLM Content Evaluation**: Submits the final landing page text, screenshot, and raw metadata from previous phases to the Gemini Vision API under a strict Pydantic schema structure.
+*   **Dynamic Threat Signals**: Maps AI findings into structured security signals (e.g. `BRAND_IMPERSONATION`, `DATA_HARVESTING`, `FAKE_LOGIN_PAGE`).
+*   **Composite Risk Scoring**: Computes a deterministic composite risk score combining signal weights, severity multipliers, and the model's brand confidence.
+*   **Interactive Web UI Dashboard**: 
+    *   **Phase-Specific Tabs**: Renders detailed panels for Static, Threat Intel, Dynamic, and AI Analysis.
+    *   **Visual Elements**: Animated circular gauges for risk scores, redirection path timelines, and screenshot previews.
+    *   **Diagnostics Panel**: Features a copy-paste prompt testing panel showing the exact compiled system and user prompts to debug LLM output.
 
 ---
 

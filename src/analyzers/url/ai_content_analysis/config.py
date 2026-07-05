@@ -11,12 +11,11 @@ class AIAnalysisConfig(BaseModel):
     # Deployment model target
     model_name: str = Field(default="gemini-2.5-flash")
 
-    
     # Temperature (deterministic)
     temperature: float = Field(default=0.0)
     
     # Max output token generation window
-    max_tokens: int = Field(default=2000)
+    max_tokens: int = Field(default=8192)
     
     # HTTP Client request timeout limit
     timeout_seconds: float = Field(default=60.0)
