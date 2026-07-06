@@ -105,6 +105,11 @@ class Settings(BaseSettings):
         alias="GOOGLE_APPLICATION_CREDENTIALS",
     )
 
+    firestore_database_id: str | None = Field(
+        default=None,
+        alias="FIRESTORE_DATABASE_ID",
+    )
+
     cache_ttl: int = Field(
         default=86400,
         alias="CACHE_TTL",

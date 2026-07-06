@@ -26,8 +26,9 @@ class FirestoreRepository(BaseRepository):
             with self._client_lock:
                 if self._client is None:
                     project = settings.firestore_project_id
-                    logger.info(f"Initializing Firestore AsyncClient for project: {project}")
-                    self._client = AsyncClient(project=project)
+                    database = settings.firestore_database_id
+                    logger.info(f"Initializing Firestore AsyncClient for project: {project}, database: {database}")
+                    self._client = AsyncClient(project=project, database=database)
         return self._client
 
     async def save_report(self, report: FraudReport) -> str:
