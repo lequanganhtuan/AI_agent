@@ -15,8 +15,9 @@ from src.analyzers.url.preprocessing.url_analyzer import URLAnalyzer
 from src.analyzers.url.static.static_url_analyzer import StaticURLAnalyzer
 from src.analyzers.url.threat_intelligence.orchestrator import ThreatIntelOrchestrator
 from src.core.models import StaticAnalysisResult, AnalysisContext
-from src.core.cache.scan_cache import get_cache
-from src.core.database.firestore_repo import FirestoreRepository
+from src.core.cache import get_cache
+from src.core.database import FirestoreRepository
+from src.core.report.builder import ReportBuilder
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -26,11 +27,11 @@ app = FastAPI(title="URL Analyzer Web Demo")
 cache = get_cache()
 db_repo = FirestoreRepository()
 
-async def persist_scan_data(ctx: AnalysisContext):
+async def persist_report_data(report):
     try:
-        await db_repo.save_scan(ctx)
+        await db_repo.save_report(report)
     except Exception as db_err:
-        logger.error(f"Failed to persist scan context to Firestore: {str(db_err)}")
+        logger.error(f"Failed to persist FraudReport to Firestore: {str(db_err)}")
 
 # Determine the absolute path to the static folder
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -297,7 +298,7 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
                     user_prompt=mock_user_prompt
                 )
 
-            return AnalysisContext(
+            context = AnalysisContext(
                 validation=val_res,
                 static=static_res,
                 threat_intel=threat_intel,
@@ -307,6 +308,7 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
                 ),
                 ai=ai_res
             )
+            return ReportBuilder.build(context)
 
         url_analyzer = URLAnalyzer()
         static_analyzer = StaticURLAnalyzer()
@@ -322,10 +324,10 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
         # Caching check
         cache_key = validation_result.cache_key
         if cache_key:
-            cached_context = await cache.get(cache_key)
-            if cached_context:
-                logger.info(f"Returning cached context for URL: {req.url}")
-                return cached_context
+            cached_report = await cache.get(cache_key)
+            if cached_report:
+                logger.info(f"Returning cached FraudReport for URL: {req.url}")
+                return cached_report
 
         # 2. Parallel execution of Static Analysis (Phase 2) and Threat Intelligence (Phase 3)
         static_task = asyncio.to_thread(static_analyzer.analyze, validation_result)
@@ -361,14 +363,17 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
         ai_orchestrator = AIContentAnalysisOrchestrator()
         await ai_orchestrator.analyze(context)
         
+        # Convert to decoupled FraudReport Pydantic representation
+        report = ReportBuilder.build(context)
+        
         # Caching set
         if cache_key:
-            await cache.set(cache_key, context)
+            await cache.set(cache_key, report)
             
         # Persist to database in background
-        background_tasks.add_task(persist_scan_data, context)
+        background_tasks.add_task(persist_report_data, report)
         
-        return context
+        return report
         
     except Exception as e:
         import traceback
@@ -376,19 +381,29 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/history")
-async def get_scan_history(limit: int = 20):
+async def get_scan_history(
+    limit: int = 20,
+    search: str | None = None,
+    verdict: str | None = None,
+    risk: str | None = None
+):
     try:
-        return await db_repo.get_recent_scans(limit=limit)
+        return await db_repo.get_recent_reports(
+            limit=limit,
+            search=search,
+            verdict=verdict,
+            risk=risk
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/history/{scan_id}")
 async def get_historical_scan(scan_id: str):
     try:
-        context = await db_repo.get_scan_by_id(scan_id)
-        if not context:
-            raise HTTPException(status_code=404, detail="Historical scan not found.")
-        return context
+        report = await db_repo.get_report_by_id(scan_id)
+        if not report:
+            raise HTTPException(status_code=404, detail="Historical report not found.")
+        return report
     except HTTPException:
         raise
     except Exception as e:

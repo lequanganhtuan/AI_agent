@@ -3,33 +3,72 @@ import os
 from unittest.mock import MagicMock, AsyncMock, patch
 from datetime import datetime
 
-from src.core.database.firestore_repo import FirestoreRepository
-from src.core.models import AnalysisContext, ValidationResult, StaticAnalysisResult, ThreatIntelligenceResult
+from src.core.database.firestore_repository import FirestoreRepository
+from src.core.report.fraud_report import FraudReport
 from src.core.settings import settings
 
+VALID_REPORT_DICT = {
+    "id": "f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
+    "cache_key": "TEST_KEY",
+    "url": "https://example.com",
+    "normalized_url": "https://example.com",
+    "scanned_at": "2026-07-06T09:28:16.123Z",
+    "validation": {
+        "valid": True,
+        "normalized_url": "https://example.com",
+        "cache_key": "TEST_KEY"
+    },
+    "static": {
+        "lexical": {
+            "url_length": 16,
+            "root_domain_length": 8,
+            "full_domain_length": 8,
+            "subdomain_count": 0,
+            "url_special_char_count": 0,
+            "digit_ratio_domain": 0.0,
+            "domain_entropy": 2.5,
+            "hyphen_count": 0,
+            "url_depth": 0,
+            "query_parameter_count": 0,
+            "max_path_segment_length": 0,
+            "longest_token_length": 0,
+            "consecutive_digit_count": 0
+        },
+        "brand": {},
+        "pattern": {},
+        "tld": {},
+        "typosquatting": {},
+        "risk": {
+            "score": 0,
+            "risk_level": "low"
+        }
+    },
+    "threat_intel": {
+        "virustotal": {},
+        "google_safe_browsing": {},
+        "urlscan": {},
+        "ip_reputation": {},
+        "risk": {
+            "score": 0,
+            "risk_level": "low"
+        }
+    }
+}
+
 @pytest.fixture
-def mock_context():
-    validation = ValidationResult.model_construct(valid=True, normalized_url="https://test.com", cache_key="TEST_KEY")
-    static = StaticAnalysisResult.model_construct()
-    threat_intel = ThreatIntelligenceResult.model_construct()
-    
-    return AnalysisContext.model_construct(
-        validation=validation,
-        static=static,
-        threat_intel=threat_intel
-    )
+def sample_report():
+    return FraudReport.model_validate(VALID_REPORT_DICT)
 
 def test_firestore_repository_initialization():
-    with patch("src.core.database.firestore_repo.settings") as mock_settings:
+    with patch("src.core.database.firestore_repository.settings") as mock_settings:
         mock_settings.google_application_credentials = "mock_credentials.json"
         repo = FirestoreRepository(collection_name="test_collection")
         assert repo.collection_name == "test_collection"
 
 @pytest.mark.anyio
-async def test_save_scan(mock_context):
+async def test_save_report(sample_report):
     repo = FirestoreRepository(collection_name="test_scans")
     
-    # Mock firestore client methods
     mock_client = MagicMock()
     mock_collection = MagicMock()
     mock_document = MagicMock()
@@ -40,21 +79,17 @@ async def test_save_scan(mock_context):
     mock_document.set = mock_set
     repo._client = mock_client
     
-    # Save scan
-    doc_id = await repo.save_scan(mock_context)
+    # Save report
+    doc_id = await repo.save_report(sample_report)
     
-    assert doc_id == "TEST_KEY"
+    # Must use report.id (UUID) instead of cache_key!
+    assert doc_id == "f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
     mock_client.collection.assert_called_once_with("test_scans")
-    mock_collection.document.assert_called_once_with("TEST_KEY")
+    mock_collection.document.assert_called_once_with("f81d4fae-7dec-11d0-a765-00a0c91e6bf6")
     mock_set.assert_called_once()
-    
-    # Check that scanned_at timestamp was added to the payload
-    called_payload = mock_set.call_args[0][0]
-    assert "scanned_at" in called_payload
-    assert isinstance(called_payload["scanned_at"], datetime)
 
 @pytest.mark.anyio
-async def test_get_scan_by_id(mock_context):
+async def test_get_report_by_id(sample_report):
     repo = FirestoreRepository(collection_name="test_scans")
     
     mock_client = MagicMock()
@@ -69,59 +104,16 @@ async def test_get_scan_by_id(mock_context):
     mock_get.return_value = mock_doc_snapshot
     repo._client = mock_client
     
-    # Test document missing
+    # Document missing
     mock_doc_snapshot.exists = False
-    res = await repo.get_scan_by_id("nonexistent")
+    res = await repo.get_report_by_id("nonexistent")
     assert res is None
     
-    # Test document present
+    # Document present
     mock_doc_snapshot.exists = True
-    # Setup Pydantic mock representation
-    mock_doc_snapshot.to_dict.return_value = {
-        "validation": {
-            "valid": True,
-            "normalized_url": "https://test.com",
-            "cache_key": "TEST_KEY"
-        },
-        "static": {
-            "lexical": {
-                "url_length": 16,
-                "root_domain_length": 8,
-                "full_domain_length": 8,
-                "subdomain_count": 0,
-                "url_special_char_count": 0,
-                "digit_ratio_domain": 0.0,
-                "domain_entropy": 2.5,
-                "hyphen_count": 0,
-                "url_depth": 0,
-                "query_parameter_count": 0,
-                "max_path_segment_length": 0,
-                "longest_token_length": 0,
-                "consecutive_digit_count": 0
-            },
-            "brand": {},
-            "pattern": {},
-            "tld": {},
-            "typosquatting": {},
-            "risk": {
-                "score": 0,
-                "risk_level": "low"
-            }
-        },
-        "threat_intel": {
-            "virustotal": {},
-            "google_safe_browsing": {},
-            "urlscan": {},
-            "ip_reputation": {},
-            "risk": {
-                "score": 0,
-                "risk_level": "low"
-            }
-        },
-        "scanned_at": datetime.utcnow()
-    }
+    mock_doc_snapshot.to_dict.return_value = VALID_REPORT_DICT
     
-    res = await repo.get_scan_by_id("TEST_KEY")
+    res = await repo.get_report_by_id("f81d4fae-7dec-11d0-a765-00a0c91e6bf6")
     assert res is not None
-    assert isinstance(res, AnalysisContext)
-    assert res.validation.normalized_url == "https://test.com"
+    assert isinstance(res, FraudReport)
+    assert res.id == "f81d4fae-7dec-11d0-a765-00a0c91e6bf6"

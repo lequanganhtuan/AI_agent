@@ -828,13 +828,21 @@ document.addEventListener('DOMContentLoaded', () => {
         historyOverlay.classList.remove('drawer-open');
     }
 
-    async function fetchHistory() {
+    async function fetchHistory(search = '', verdict = 'ALL') {
         historyLoading.classList.remove('hidden');
         historyEmpty.classList.add('hidden');
         historyItemsContainer.innerHTML = '';
         
         try {
-            const response = await fetch('/api/history?limit=30');
+            let url = `/api/history?limit=30`;
+            if (search) {
+                url += `&search=${encodeURIComponent(search)}`;
+            }
+            if (verdict && verdict !== 'ALL') {
+                url += `&verdict=${encodeURIComponent(verdict)}`;
+            }
+            
+            const response = await fetch(url);
             if (!response.ok) throw new Error('Failed to fetch scan history');
             
             allScans = await response.json();
@@ -887,17 +895,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    let searchTimeout = null;
     function applyFilters() {
-        const query = historySearch.value.toLowerCase().trim();
-        const selectedVerdict = historyFilter.value;
-
-        const filtered = allScans.filter(scan => {
-            const matchesSearch = scan.url.toLowerCase().includes(query);
-            const matchesVerdict = selectedVerdict === 'ALL' || (scan.verdict || 'ALLOW').toUpperCase() === selectedVerdict;
-            return matchesSearch && matchesVerdict;
-        });
-
-        renderScansList(filtered);
+        if (searchTimeout) {
+            clearTimeout(searchTimeout);
+        }
+        searchTimeout = setTimeout(() => {
+            const query = historySearch.value.trim();
+            const selectedVerdict = historyFilter.value;
+            fetchHistory(query, selectedVerdict);
+        }, 300);
     }
 
     async function loadHistoricalScan(scanId) {
