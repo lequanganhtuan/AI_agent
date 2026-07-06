@@ -3,11 +3,18 @@ import asyncio
 import time
 from unittest.mock import MagicMock, AsyncMock, patch
 
-from src.core.cache.scan_cache import get_cache, InMemoryCache, RedisCache
-from src.core.models import AnalysisContext, ValidationResult, StaticAnalysisResult, ThreatIntelligenceResult
+from src.core.cache.factory import get_cache
+from src.core.cache.memory_cache import InMemoryCache
+from src.core.cache.redis_cache import RedisCache
+from src.core.report.fraud_report import FraudReport
 from src.core.settings import settings
 
-VALID_CONTEXT_DICT = {
+VALID_REPORT_DICT = {
+    "id": "f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
+    "cache_key": "TEST_KEY",
+    "url": "https://example.com",
+    "normalized_url": "https://example.com",
+    "scanned_at": "2026-07-06T09:28:16.123Z",
     "validation": {
         "valid": True,
         "normalized_url": "https://example.com",
@@ -51,37 +58,35 @@ VALID_CONTEXT_DICT = {
 }
 
 @pytest.fixture
-def mock_context():
-    return AnalysisContext.model_validate(VALID_CONTEXT_DICT)
+def sample_report():
+    return FraudReport.model_validate(VALID_REPORT_DICT)
 
 @pytest.mark.anyio
-async def test_in_memory_cache_get_set(mock_context):
+async def test_in_memory_cache_get_set(sample_report):
     cache = InMemoryCache()
     
     # Verify missing key returns None
     result = await cache.get("nonexistent")
     assert result is None
     
-    # Store and retrieve context
-    await cache.set("test_key", mock_context, ttl=10)
+    # Store and retrieve report
+    await cache.set("test_key", sample_report, ttl=10)
     retrieved = await cache.get("test_key")
     
     assert retrieved is not None
-    assert retrieved.validation.normalized_url == "https://example.com"
-    assert retrieved.validation.cache_key == "TEST_KEY"
+    assert retrieved.id == "f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
+    assert retrieved.cache_key == "TEST_KEY"
 
 @pytest.mark.anyio
-async def test_in_memory_cache_expiration(mock_context):
+async def test_in_memory_cache_expiration(sample_report):
     cache = InMemoryCache()
-    
-    # Set with immediate expiration (TTL = 0 or negative)
-    await cache.set("expired_key", mock_context, ttl=-1)
+    await cache.set("expired_key", sample_report, ttl=-1)
     
     retrieved = await cache.get("expired_key")
     assert retrieved is None
 
 @pytest.mark.anyio
-async def test_redis_cache_get_set(mock_context):
+async def test_redis_cache_get_set(sample_report):
     cache = RedisCache("redis://localhost:6379")
     
     # Mock redis client calls
@@ -96,26 +101,25 @@ async def test_redis_cache_get_set(mock_context):
     
     # Set item
     mock_redis.set = AsyncMock()
-    await cache.set("key", mock_context, ttl=60)
+    await cache.set("key", sample_report, ttl=60)
     mock_redis.set.assert_called_once()
     
     # Get present item
     import json
-    mock_redis.get.return_value = json.dumps(VALID_CONTEXT_DICT)
+    mock_redis.get.return_value = json.dumps(VALID_REPORT_DICT)
     res = await cache.get("key")
     assert res is not None
-    assert res.validation.normalized_url == "https://example.com"
+    assert res.id == "f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
 
 def test_cache_factory_selection():
     # If redis_url is unset, factory returns InMemoryCache
-    with patch("src.core.cache.scan_cache.settings") as mock_settings:
+    with patch("src.core.cache.factory.settings") as mock_settings:
         mock_settings.redis_url = None
         cache = get_cache()
         assert isinstance(cache, InMemoryCache)
         
     # If redis_url is set, factory returns RedisCache
-    with patch("src.core.cache.scan_cache.settings") as mock_settings:
+    with patch("src.core.cache.factory.settings") as mock_settings:
         mock_settings.redis_url = "redis://localhost:6379"
         cache = get_cache()
         assert isinstance(cache, RedisCache)
-
