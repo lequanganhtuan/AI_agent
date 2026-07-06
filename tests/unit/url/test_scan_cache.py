@@ -97,12 +97,13 @@ async def test_redis_cache_get_set(sample_report):
     # Get missing
     res = await cache.get("missing")
     assert res is None
-    mock_redis.get.assert_called_once_with("missing")
+    mock_redis.get.assert_called_once_with("scan:missing")
     
     # Set item
+    from unittest.mock import ANY
     mock_redis.set = AsyncMock()
     await cache.set("key", sample_report, ttl=60)
-    mock_redis.set.assert_called_once()
+    mock_redis.set.assert_called_once_with("scan:key", ANY, ex=60)
     
     # Get present item
     import json

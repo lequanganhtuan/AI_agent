@@ -105,6 +105,11 @@ class Settings(BaseSettings):
         alias="GOOGLE_APPLICATION_CREDENTIALS",
     )
 
+    cache_ttl: int = Field(
+        default=86400,
+        alias="CACHE_TTL",
+    )
+
 
 settings = Settings()
 

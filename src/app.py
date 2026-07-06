@@ -368,7 +368,7 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
         
         # Caching set
         if cache_key:
-            await cache.set(cache_key, report)
+            await cache.set(cache_key, report, ttl=settings.cache_ttl)
             
         # Persist to database in background
         background_tasks.add_task(persist_report_data, report)
