@@ -14,6 +14,10 @@ class LLMRateLimitError(AIContentAnalysisError):
     """Raised when the LLM API rate limit is exceeded."""
     pass
 
+class LLMQuotaExhaustedError(AIContentAnalysisError):
+    """Raised when the LLM API quota is completely exhausted (e.g. 429 RESOURCE_EXHAUSTED)."""
+    pass
+
 class LLMResponseParseError(AIContentAnalysisError):
     """Raised when the raw LLM response fails structural string deserialization or schema mapping."""
     pass
@@ -21,4 +25,5 @@ class LLMResponseParseError(AIContentAnalysisError):
 class LLMResponseValidationError(AIContentAnalysisError):
     """Raised when semantic/logical validation rules fail verification on the LLM output."""
     pass
+
 

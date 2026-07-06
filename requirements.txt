@@ -11,3 +11,4 @@ redis
 dnspython
 playwright
 beautifulsoup4
+google-cloud-firestore

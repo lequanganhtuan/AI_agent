@@ -433,9 +433,13 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('ai-detected-brand').textContent = aiResult.content.detected_brand || 'None';
             document.getElementById('ai-fraud-category').textContent = aiResult.content.fraud_category || '-';
             
-            const rawConf = aiResult.content.confidence;
-            const cleanConf = (typeof rawConf === 'number') ? `${Math.round(rawConf * 100)}%` : '-';
-            document.getElementById('ai-brand-confidence').textContent = cleanConf;
+            const rawVerdictConf = aiResult.content.confidence;
+            const cleanVerdictConf = (typeof rawVerdictConf === 'number') ? `${Math.round(rawVerdictConf * 100)}%` : '-';
+            document.getElementById('ai-confidence-value').textContent = cleanVerdictConf;
+
+            const rawBrandConf = aiResult.content.brand_confidence;
+            const cleanBrandConf = (typeof rawBrandConf === 'number') ? `${Math.round(rawBrandConf * 100)}%` : '-';
+            document.getElementById('ai-brand-confidence').textContent = cleanBrandConf;
 
             // Reasoning list
             const reasoningDetails = document.getElementById('ai-reasoning-details');
@@ -505,8 +509,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Show error message inside website purpose
             if (aiResult && aiResult.error) {
-                document.getElementById('ai-website-purpose').innerHTML = `<span style="color: var(--risk-high); font-weight: 600;">AI analysis unavailable: API timeout/credentials error.</span>`;
-                document.getElementById('ai-reasoning-details').innerHTML = `<div class="bullet-item" style="color: var(--text-muted); font-size: 13px;">The external LLM provider returned an exception during analysis. You can still inspect and manually test the computed prompts in the Gemini Web Interface below.</div>`;
+                document.getElementById('ai-website-purpose').innerHTML = `<span style="color: var(--risk-high); font-weight: 600;">AI analysis failed: ${aiResult.error}</span>`;
+                document.getElementById('ai-reasoning-details').innerHTML = `<div class="bullet-item" style="color: var(--risk-high); font-size: 13px; font-weight: 500;">Error Details: ${aiResult.error}</div><div class="bullet-item" style="color: var(--text-muted); font-size: 13px; margin-top: 5px;">The external LLM provider returned an exception during analysis. You can still inspect and manually test the computed prompts in the Gemini Web Interface below.</div>`;
             } else {
                 document.getElementById('ai-website-purpose').textContent = '-';
                 document.getElementById('ai-reasoning-details').innerHTML = '<div class="bullet-item">No reasoning telemetry compiled.</div>';
@@ -515,6 +519,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('ai-detected-brand').textContent = '-';
             document.getElementById('ai-fraud-category').textContent = '-';
             document.getElementById('ai-brand-confidence').textContent = '-';
+            document.getElementById('ai-confidence-value').textContent = '-';
             document.getElementById('ai-findings-details').innerHTML = '<div class="bullet-item">No indicators generated.</div>';
             document.getElementById('ai-signals-badge-container').innerHTML = '<span class="no-signals">No indicators reported.</span>';
             
@@ -788,5 +793,158 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.target_domain) findings.push(`Similar to: ${data.target_domain}`);
         if (data.homoglyph_detected) findings.push(`Homoglyph usage found`);
         return findings;
+    }
+
+    // --- HISTORY SIDE DRAWER LOGIC ---
+    const historyBtn = document.getElementById('history-btn');
+    const historyDrawer = document.getElementById('history-drawer');
+    const historyOverlay = document.getElementById('history-overlay');
+    const drawerClose = document.getElementById('drawer-close');
+    const historySearch = document.getElementById('history-search');
+    const historyFilter = document.getElementById('history-verdict-filter');
+    const historyItemsContainer = document.getElementById('history-items-container');
+    const historyLoading = document.getElementById('history-loading');
+    const historyEmpty = document.getElementById('history-empty');
+
+    let allScans = []; // Hold all loaded scans in memory for local filtering
+
+    if (historyBtn && historyDrawer && historyOverlay && drawerClose) {
+        historyBtn.addEventListener('click', openHistoryDrawer);
+        drawerClose.addEventListener('click', closeHistoryDrawer);
+        historyOverlay.addEventListener('click', closeHistoryDrawer);
+
+        historySearch.addEventListener('input', applyFilters);
+        historyFilter.addEventListener('change', applyFilters);
+    }
+
+    async function openHistoryDrawer() {
+        historyDrawer.classList.add('drawer-open');
+        historyOverlay.classList.add('drawer-open');
+        await fetchHistory();
+    }
+
+    function closeHistoryDrawer() {
+        historyDrawer.classList.remove('drawer-open');
+        historyOverlay.classList.remove('drawer-open');
+    }
+
+    async function fetchHistory() {
+        historyLoading.classList.remove('hidden');
+        historyEmpty.classList.add('hidden');
+        historyItemsContainer.innerHTML = '';
+        
+        try {
+            const response = await fetch('/api/history?limit=30');
+            if (!response.ok) throw new Error('Failed to fetch scan history');
+            
+            allScans = await response.json();
+            renderScansList(allScans);
+        } catch (err) {
+            console.error(err);
+            historyItemsContainer.innerHTML = `<div class="error-message" style="color: var(--risk-high); padding: 1rem; text-align: center;">Error loading history.</div>`;
+        } finally {
+            historyLoading.classList.add('hidden');
+        }
+    }
+
+    function renderScansList(scans) {
+        historyItemsContainer.innerHTML = '';
+        if (scans.length === 0) {
+            historyEmpty.classList.remove('hidden');
+            return;
+        }
+        historyEmpty.classList.add('hidden');
+
+        scans.forEach(scan => {
+            const card = document.createElement('div');
+            card.className = 'history-item-card';
+            card.setAttribute('data-id', scan.id);
+            
+            // Format time difference
+            const formattedTime = formatTimeAgo(new Date(scan.timestamp));
+            
+            // Verdict mapping to class
+            const verdict = (scan.verdict || 'ALLOW').toUpperCase();
+            let pillClass = 'pill-low';
+            if (verdict === 'BLOCK') {
+                pillClass = scan.score >= 90 ? 'pill-critical' : 'pill-high';
+            } else if (verdict === 'WARN') {
+                pillClass = 'pill-medium';
+            }
+
+            card.innerHTML = `
+                <div class="history-item-url" title="${scan.url}">${scan.url}</div>
+                <div class="history-item-meta">
+                    <span>${formattedTime}</span>
+                    <span class="history-item-score-pill ${pillClass}">
+                        ${verdict} (${Math.round(scan.score)})
+                    </span>
+                </div>
+            `;
+
+            card.addEventListener('click', () => loadHistoricalScan(scan.id));
+            historyItemsContainer.appendChild(card);
+        });
+    }
+
+    function applyFilters() {
+        const query = historySearch.value.toLowerCase().trim();
+        const selectedVerdict = historyFilter.value;
+
+        const filtered = allScans.filter(scan => {
+            const matchesSearch = scan.url.toLowerCase().includes(query);
+            const matchesVerdict = selectedVerdict === 'ALL' || (scan.verdict || 'ALLOW').toUpperCase() === selectedVerdict;
+            return matchesSearch && matchesVerdict;
+        });
+
+        renderScansList(filtered);
+    }
+
+    async function loadHistoricalScan(scanId) {
+        closeHistoryDrawer();
+        
+        // Show indicator on analyzer button
+        input.disabled = true;
+        btnText.classList.add('hidden');
+        spinner.classList.remove('hidden');
+        errorMsg.classList.add('hidden');
+
+        try {
+            const response = await fetch(`/api/history/${scanId}`);
+            if (!response.ok) throw new Error('Failed to retrieve historical record');
+            
+            const data = await response.json();
+            
+            // Load URL to input
+            input.value = data.validation.normalized_url;
+            
+            // Show results
+            resultsSection.classList.remove('hidden');
+            displayResults(data);
+            
+            // Scroll to results
+            resultsSection.scrollIntoView({ behavior: 'smooth' });
+        } catch (err) {
+            errorMsg.textContent = err.message;
+            errorMsg.classList.remove('hidden');
+        } finally {
+            input.disabled = false;
+            btnText.classList.remove('hidden');
+            spinner.classList.add('hidden');
+        }
+    }
+
+    function formatTimeAgo(date) {
+        const seconds = Math.floor((new Date() - date) / 1000);
+        if (seconds < 60) return 'Just now';
+        
+        const minutes = Math.floor(seconds / 60);
+        if (minutes < 60) return `${minutes} min${minutes > 1 ? 's' : ''} ago`;
+        
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+        
+        const days = Math.floor(hours / 24);
+        return `${days} day${days > 1 ? 's' : ''} ago`;
     }
 });
