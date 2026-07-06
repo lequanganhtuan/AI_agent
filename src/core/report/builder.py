@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from src.core.models import AnalysisContext
 from src.core.report.fraud_report import FraudReport, FraudAIAnalysisReport
 
@@ -30,7 +30,9 @@ class ReportBuilder:
                 content=context.ai.content,
                 signals=context.ai.signals,
                 risk=context.ai.risk,
-                error=context.ai.error
+                error=context.ai.error,
+                system_prompt=context.ai.system_prompt,
+                user_prompt=context.ai.user_prompt
             )
             
         return FraudReport(
@@ -38,7 +40,7 @@ class ReportBuilder:
             cache_key=cache_key,
             url=url,
             normalized_url=normalized_url,
-            scanned_at=datetime.utcnow(),
+            scanned_at=datetime.now(timezone.utc),
             validation=context.validation,
             static=context.static,
             threat_intelligence=context.threat_intelligence,

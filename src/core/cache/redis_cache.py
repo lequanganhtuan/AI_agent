@@ -24,11 +24,12 @@ class RedisCache(BaseCache):
 
     async def get(self, key: str) -> Optional[FraudReport]:
         try:
-            cached_data = await self.client.get(key)
+            redis_key = f"scan:{key}"
+            cached_data = await self.client.get(redis_key)
             if not cached_data:
                 return None
             
-            logger.info(f"Cache HIT for key: {key} (Redis)")
+            logger.info(f"Cache HIT for key: {redis_key} (Redis)")
             raw_dict = json.loads(cached_data)
             return FraudReport.model_validate(raw_dict)
         except Exception as e:
@@ -37,10 +38,11 @@ class RedisCache(BaseCache):
 
     async def set(self, key: str, report: FraudReport, ttl: int = 86400) -> None:
         try:
+            redis_key = f"scan:{key}"
             # Use Pydantic's native model_dump_json to correctly serialize datetime and UUID fields
             serialized = report.model_dump_json(by_alias=True)
-            await self.client.set(key, serialized, ex=ttl)
-            logger.info(f"Successfully cached key: {key} for {ttl}s (Redis)")
+            await self.client.set(redis_key, serialized, ex=ttl)
+            logger.info(f"Successfully cached key: {redis_key} for {ttl}s (Redis)")
         except Exception as e:
             logger.error(f"Redis set cache failed: {str(e)}")
 

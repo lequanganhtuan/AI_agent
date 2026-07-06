@@ -11,11 +11,13 @@ from src.analyzers.url.ai_content_analysis.models import (
 )
 
 class FraudAIAnalysisReport(BaseModel):
-    """Pruned version of AIAnalysisResult for report persistence, excluding system and user prompts."""
+    """Pruned version of AIAnalysisResult for report persistence."""
     content: Optional[ContentAnalysisResult] = None
     signals: List[AISignal] = Field(default_factory=list)
     risk: Optional[AIRisk] = None
     error: Optional[str] = None
+    system_prompt: Optional[str] = None
+    user_prompt: Optional[str] = None
 
 
 class FraudReport(BaseModel):

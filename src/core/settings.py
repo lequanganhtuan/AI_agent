@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -104,5 +105,18 @@ class Settings(BaseSettings):
         alias="GOOGLE_APPLICATION_CREDENTIALS",
     )
 
+    firestore_database_id: str | None = Field(
+        default=None,
+        alias="FIRESTORE_DATABASE_ID",
+    )
+
+    cache_ttl: int = Field(
+        default=86400,
+        alias="CACHE_TTL",
+    )
+
 
 settings = Settings()
+
+if settings.google_application_credentials:
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = settings.google_application_credentials

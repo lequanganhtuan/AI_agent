@@ -57,9 +57,9 @@ def test_report_builder_mapping(sample_context):
     assert report.normalized_url == "https://example.com/login"
     assert isinstance(report.scanned_at, datetime)
     
-    # Verify prompts are completely stripped
+    # Verify prompts are mapped correctly
     assert report.ai is not None
-    assert not hasattr(report.ai, "system_prompt")
-    assert not hasattr(report.ai, "user_prompt")
+    assert report.ai.system_prompt == "System Prompt Content"
+    assert report.ai.user_prompt == "User Prompt Content"
     assert report.ai.content.detected_brand == "Chase"
     assert report.ai.content.recommended_action == RecommendedAction.BLOCK

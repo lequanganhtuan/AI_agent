@@ -121,7 +121,8 @@ class TestThreatIntelOrchestrator:
             assert res.risk.confidence == 1.0
 
             # Verify saved to cache
-            mock_set.assert_called_once()
+            from unittest.mock import ANY
+            mock_set.assert_any_call('threat_intelfull_threat_intel:test_cache_key_123', ANY, ex=86400)
 
     async def test_orchestrator_provider_failure_isolation(self, orchestrator, validation_result):
         """Failures in individual providers do not fail the overall pipeline lookup."""

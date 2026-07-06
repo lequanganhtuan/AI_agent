@@ -130,3 +130,11 @@ class TestAIRiskEngine:
         risk_allow = engine.calculate_risk([], RecommendedAction.ALLOW)
         assert risk_allow.score == 0.0
         assert risk_allow.level == RiskLevel.LOW
+
+        # Test non-empty signals with ALLOW verdict should suppress score to 0.0
+        signals = [
+            AISignal(signal=AISignalType.FAKE_LOGIN_PAGE, severity=Severity.HIGH, confidence=1.0, description="Fake Login")
+        ]
+        risk_allow_with_signals = engine.calculate_risk(signals, RecommendedAction.ALLOW)
+        assert risk_allow_with_signals.score == 0.0
+        assert risk_allow_with_signals.level == RiskLevel.LOW
