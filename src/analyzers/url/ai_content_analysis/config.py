@@ -10,6 +10,7 @@ class AIAnalysisConfig(BaseModel):
     
     # Deployment model target
     model_name: str = Field(default="gemini-2.5-flash")
+    backup_model_name: str = Field(default="gemini-2.5-flash-lite")
 
     # Temperature (deterministic)
     temperature: float = Field(default=0.0)

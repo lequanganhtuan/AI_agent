@@ -165,13 +165,16 @@ A live headless crawler visits the site inside a secure Playwright environment:
 
 ### Phase 5: AI Content Analysis & Web UI Dashboard
 An LLM content analyzer (Google Gemini) and interactive dashboard process the combined data to produce a final security verdict:
-*   **LLM Content Evaluation**: Submits the final landing page text, screenshot, and raw metadata from previous phases to the Gemini Vision API under a strict Pydantic schema structure.
+*   **AI Content Evaluation**: Submits the final landing page text, screenshot, and raw metadata from previous phases to the Gemini API under a strict Pydantic schema structure.
+*   **Resilient Model Failover (Primary/Backup)**: Integrates primary model target `gemini-2.5-flash` with an automatic failover to `gemini-2.5-flash-lite` if the primary model fails due to rate limits, connection errors, or quota exhaustion (`RESOURCE_EXHAUSTED` 429).
+*   **Robust Exception Isolation**: Translates raw API exceptions into fine-grained client exceptions (like `LLMQuotaExhaustedError`). If both primary and backup models fail, the orchestrator gracefully isolates the failure, logs the error, and falls back to rendering the system and user prompts anyway.
 *   **Dynamic Threat Signals**: Maps AI findings into structured security signals (e.g. `BRAND_IMPERSONATION`, `DATA_HARVESTING`, `FAKE_LOGIN_PAGE`).
 *   **Composite Risk Scoring**: Computes a deterministic composite risk score combining signal weights, severity multipliers, and the model's brand confidence.
 *   **Interactive Web UI Dashboard**: 
     *   **Phase-Specific Tabs**: Renders detailed panels for Static, Threat Intel, Dynamic, and AI Analysis.
     *   **Visual Elements**: Animated circular gauges for risk scores, redirection path timelines, and screenshot previews.
-    *   **Diagnostics Panel**: Features a copy-paste prompt testing panel showing the exact compiled system and user prompts to debug LLM output.
+    *   **Diagnostics Panel**: Features a copy-paste prompt testing panel showing the exact compiled system and user prompts to debug LLM output, even when active API calls fail.
+    *   **Enhanced UI Telemetry**: Displays exact LLM failure descriptions (e.g., API quota exceeded or connection timeouts) directly on the dashboard to assist operators in real-time troubleshooting.
 
 ---
 
@@ -209,6 +212,7 @@ GOOGLE_SAFE_BROWSING_API_KEY=your_google_safe_browsing_api_key_here
 URLSCAN_API_KEY=your_urlscan_api_key_here
 URLHAUS_API_KEY=your_urlhaus_api_key_here
 ABUSEIPDB_API_KEY=your_abuse_ip_db_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here
 
 # Optional Configurations
 # REDIS_URL=redis://localhost:6379/0

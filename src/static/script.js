@@ -505,8 +505,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Show error message inside website purpose
             if (aiResult && aiResult.error) {
-                document.getElementById('ai-website-purpose').innerHTML = `<span style="color: var(--risk-high); font-weight: 600;">AI analysis unavailable: API timeout/credentials error.</span>`;
-                document.getElementById('ai-reasoning-details').innerHTML = `<div class="bullet-item" style="color: var(--text-muted); font-size: 13px;">The external LLM provider returned an exception during analysis. You can still inspect and manually test the computed prompts in the Gemini Web Interface below.</div>`;
+                document.getElementById('ai-website-purpose').innerHTML = `<span style="color: var(--risk-high); font-weight: 600;">AI analysis failed: ${aiResult.error}</span>`;
+                document.getElementById('ai-reasoning-details').innerHTML = `<div class="bullet-item" style="color: var(--risk-high); font-size: 13px; font-weight: 500;">Error Details: ${aiResult.error}</div><div class="bullet-item" style="color: var(--text-muted); font-size: 13px; margin-top: 5px;">The external LLM provider returned an exception during analysis. You can still inspect and manually test the computed prompts in the Gemini Web Interface below.</div>`;
             } else {
                 document.getElementById('ai-website-purpose').textContent = '-';
                 document.getElementById('ai-reasoning-details').innerHTML = '<div class="bullet-item">No reasoning telemetry compiled.</div>';
