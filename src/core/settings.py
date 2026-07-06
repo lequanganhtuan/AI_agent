@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -106,3 +107,6 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+if settings.google_application_credentials:
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = settings.google_application_credentials
