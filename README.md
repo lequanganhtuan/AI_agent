@@ -2,17 +2,19 @@
 
 Welcome to the **Enterprise AI URL Safety & Fraud Detection Platform**—a modular, asynchronous, multi-phase threat assessment pipeline designed to inspect, validate, analyze, and neutralize malicious URLs. 
 
-By combining **static lexical heuristics**, **brand-spoofing detection**, **multi-provider Threat Intelligence (Threat Intel) aggregation**, and **sandboxed dynamic browser execution**, this platform offers a deep, 360-degree security assessment of any incoming URL or domain.
+By combining **static lexical heuristics**, **brand-spoofing detection**, **multi-provider Threat Intelligence (Threat Intel) aggregation**, **sandboxed dynamic browser execution**, and **generative AI reasoning**, this platform offers a deep, 360-degree security assessment of any incoming URL or domain.
 
 ---
 
 ## 🚀 Key Capabilities
 
 *   **Asynchronous Processing**: Powered by Python's `asyncio` to execute intensive external APIs and sandboxed browser navigations concurrently, achieving low-latency verdicts.
-*   **Decoupled Multi-Phase Architecture**: Separates parsing, static features, external threat databases, and live page behavior into highly customizable, independent layers.
+*   **Decoupled Multi-Phase Architecture**: Separates parsing, static features, external threat databases, live page behavior, and AI evaluation into independent layers.
 *   **Resilient Threat Intel Orchestrator**: Queries multiple industry-standard security APIs (VirusTotal, Google Safe Browsing, PhishTank, URLhaus, AbuseIPDB, URLScan) in parallel with automatic timeouts, error isolation, and caching.
-*   **Headless Dynamic Analysis**: Spawns an automated Playwright chromium instance to capture redirect chains, sniff network traffic, audit DOM inputs (for credential harvesting/OTP forms), execute script telemetry, and capture screenshot evidence.
-*   **Interactive Analytics Dashboard**: Provides a sleek, dark-mode Web UI showing live metrics, scoring breakdown, redirect timelines, DOM telemetry, and page screenshots.
+*   **Headless Dynamic Analysis**: Spawns an automated Playwright Chromium instance to capture redirect chains, sniff network traffic, audit DOM inputs (for credential harvesting/OTPs), execute script telemetry, and capture screenshot evidence.
+*   **Google Gemini AI Content Audit**: Uses Google's generative AI (with primary and backup fallback model pipelines) to analyze visual, textual, and behavioral metadata, generating natural language reasoning and safety recommendations.
+*   **Dual-Layer Caching & Persistent Ledger**: Automatically caches scan results using namespaced Redis keys or a robust local in-memory clock-safe cache. Integrates serverless Google Cloud Firestore to maintain a searchable, filterable historical record of scans.
+*   **Interactive Web UI Dashboard**: Renders real-time risk gauges, redirect paths, screenshots, diagnostic copy-paste prompt testers, and a slide-out Scan History drawer.
 
 ---
 
@@ -33,7 +35,14 @@ AI_agent/
 │   │   ├── enums.py           # Common enums (e.g. Risk levels)
 │   │   ├── exceptions.py      # Base application errors
 │   │   ├── models.py          # Unified Pydantic schema declarations
-│   │   └── settings.py        # Pydantic Settings Manager (loads .env)
+│   │   ├── settings.py        # Pydantic Settings Manager (loads .env)
+│   │   ├── cache/             # Dual-layer Caching Engine
+│   │   │   ├── base.py        # Cache interfaces
+│   │   │   ├── memory_cache.py# Monotonic clock-safe local memory cache
+│   │   │   ├── redis_cache.py # Namespaced async Redis implementation
+│   │   │   └── factory.py     # Cache provider fallback factory
+│   │   └── database/          # Persistence Layer
+│   │       └── firestore_repository.py # Google Cloud Firestore adapter
 │   ├── dns/                   # Custom DNS Resolution Modules
 │   │   ├── cache.py           # TTL-respecting DNS query cache
 │   │   ├── resolver.py        # Secure DNS client
@@ -58,90 +67,41 @@ AI_agent/
 
 ---
 
-## 🔄 The 5-Phase Analysis Pipeline
+## 🔄 The 6-Phase Analysis Pipeline
 
-The system processes every URL through five progressive validation and detection phases:
+The system processes every URL through six progressive validation, detection, caching, and persistence phases:
 
 ```mermaid
 flowchart TD
-    subgraph P1[Phase 1: Preprocessing & DNS Validation]
-        A["Input URL"] --> B["validator.py<br>Validation"]
-        B -- Invalid --> Err["HTTP 400 Error"]
-        B -- Valid --> C["normalizer.py<br>Normalization"]
-        C --> D["tldextract<br>Component Parsing"]
-        D --> E["resolver.py<br>DNS Resolution"]
-        E --> E_Cache["cache.py<br>DNS Cache Check"]
-        E_Cache -- Hit --> F["Validation Result"]
-        E_Cache -- Miss --> DNS_Query["Network DNS Query"] --> Cache_Save["Save DNS Cache"] --> F
+    A["Input URL"] --> B_Cache{"Cache Lookup<br>(Redis/Memory)"}
+    B_Cache -- HIT --> ReturnCached["Return Cached Verdict"]
+    
+    B_Cache -- MISS --> P1["Phase 1: Preprocessing & DNS Validation"]
+    P1 --> P2["Phase 2: Static Heuristics & Lexical Analysis"]
+    P2 --> P3["Phase 3: Concurrent Threat Intelligence"]
+    P3 --> P4["Phase 4: Sandboxed Dynamic Browser crawling"]
+    P4 --> P5["Phase 5: Gemini AI Content & Verdict Generation"]
+    
+    P5 --> P6["Phase 6: Persistence & Cache Save"]
+    subgraph P6_Actions[Phase 6 Operations]
+        P6 --> SaveCache["Cache Result<br>(Prefix: scan:)"]
+        P6 --> SaveDB["Firestore Write<br>(Background Task)"]
     end
-
-    subgraph P2[Phase 2: Static Heuristics & Lexical Analysis]
-        F --> G["static_url_analyzer.py"]
-        G --> H1["lexical_analyzer.py<br>Entropy & Lengths"]
-        G --> H2["brand_analyzer.py<br>Brand Imitation"]
-        G --> H3["typosquatting_analyzer.py<br>Levenshtein Check"]
-        G --> H4["pattern_analyzer.py<br>Suspicious Keyword Patterns"]
-        G --> H5["tld_analyzer.py<br>High-Risk Registry Check"]
-        H1 & H2 & H3 & H4 & H5 --> I["static_risk_calculator.py"]
-        I --> J["Static Risk Score"]
-    end
-
-    subgraph P3[Phase 3: Parallel Threat Intelligence]
-        F --> K["orchestrator.py"]
-        K --> L_Cache["Redis Cache Check"]
-        L_Cache -- Hit --> M["Threat Intel Result"]
-        L_Cache -- Miss --> API_Lookup["Concurrent API Lookup"]
-        subgraph API_Providers[Third-Party Security Providers]
-            API_Lookup --> VT["VirusTotal"]
-            API_Lookup --> GSB["Google Safe Browsing"]
-            API_Lookup --> PT["PhishTank"]
-            API_Lookup --> UH["URLhaus"]
-            API_Lookup --> AB["AbuseIPDB"]
-            API_Lookup --> US["URLScan"]
-        end
-        VT & GSB & PT & UH & AB & US --> N["Aggregator &<br>Timeout Fallback"]
-        N --> Cache_Store["Store in Redis"] --> M
-    end
-
-    subgraph P4[Phase 4: Sandboxed Dynamic Analysis]
-        F --> O["dynamic_analysis/orchestrator.py"]
-        O --> P["browser_engine.py<br>Playwright Launch"]
-        P --> Q["network_analyzer.py<br>Start Traffic Capture"]
-        Q --> R["page_loader.py<br>Navigation & Load"]
-        R --> S["screenshot_collector.py<br>Full-Page Capture"]
-        R --> T["Post-Load Analysis"]
-        subgraph Evaluation[Evaluation Engines]
-            T --> T1["redirect_analyzer.py<br>Chains & Loops"]
-            T --> T2["dom_analyzer.py<br>Forms, Hidden Iframes, script tags"]
-            T --> T3["network_analyzer.py<br>APIs, WebSockets, CDNs"]
-        end
-        S & T1 & T2 & T3 --> U["risk & summary<br>Calculators"]
-        U --> V["Dynamic Risk Result"]
-    end
-
-    subgraph P5[Phase 5: Output & Dashboard Visualization]
-        J & M & V --> W["FastAPI app.py<br>AnalysisContext Composer"]
-        W --> X["Web UI Dashboard"]
-        X --> Y1["Interactive Tab Metrics"]
-        X --> Y2["Screenshot Preview"]
-        X --> Y3["Timeline Visualization"]
-    end
+    
+    SaveCache & SaveDB --> ReturnFresh["Return Fresh FraudReport & Render UI"]
 ```
 
 ### Phase 1: Preprocessing & DNS Validation
-*   **Validation**: Asserts URL structure, extracts parameters, and intercepts private IPs or invalid formats before executing outbound queries.
-*   **Normalization**: Corrects casing, trims whitespace, standardizes query parameters, and handles Punycode internationalized domains to establish a deterministic cache key.
+*   **Validation**: Asserts URL structure, extracts components, and intercepts private IPs or invalid formats before executing outbound queries.
+*   **Normalization**: Corrects casing, standardizes query parameters, and handles Punycode internationalized domains to establish a deterministic cache key.
 *   **DNS Resolution**: Checks actual domain viability via a custom resolver featuring a thread-safe, TTL-sensitive caching system.
 
 ### Phase 2: Static Heuristics & Lexical Analysis
 Checks properties of the URL itself without making network calls to external sites:
 *   **Lexical Features**: Computes entropy, digit ratios, depth, token lengths, and special characters.
 *   **Brand Spoofing**: Compares the target domain against lists of high-traffic brands to identify phishing targets.
-*   **Typosquatting/Combosquatting**: Applies Levenshtein distance metrics to catch lookalike domains (e.g., `g00gle.com`, `paypal-security-update.net`).
-*   **TLD Check**: Matches top-level domains against list of high-risk spam or malware registrars.
-*   **Static Risk Score**: Computes a rules-based static risk score from these local signals.
-
-![Static Heuristics Analysis](artifacts/phase2_static.png)
+*   **Typosquatting**: Applies Levenshtein distance metrics to catch lookalike domains (e.g., `g00gle.com`, `paypal-security-update.net`).
+*   **TLD Check**: Matches top-level domains against a list of high-risk spam or malware registrars.
 
 ### Phase 3: Parallel Threat Intelligence
 Aggregates live reputation data from multiple providers concurrently:
@@ -150,9 +110,7 @@ Aggregates live reputation data from multiple providers concurrently:
 *   **AbuseIPDB**: Assesses host IP reputation, reports count, and hosting metadata.
 *   **URLhaus**: Queries active malware payload distribution lists.
 *   **URLScan**: Identifies behavioral and site-level hazards.
-*   **Error Tolerance**: If a single API provider experiences network timeouts or quota exhaustion, it is gracefully isolated. The engine continues processing and adjusts the overall **Confidence Score** proportional to the succeeded lookups.
-
-![Threat Intelligence Analysis](artifacts/phase3_threat.png)
+*   **Error Tolerance**: Gracefully isolates provider failures or timeouts, adjusting the overall **Confidence Score** proportional to the succeeded lookups.
 
 ### Phase 4: Sandboxed Dynamic Browser Crawling
 A live headless crawler visits the site inside a secure Playwright environment:
@@ -161,20 +119,16 @@ A live headless crawler visits the site inside a secure Playwright environment:
 *   **Network Sniffing**: Inspects API endpoints, WebSocket activities, and CDN connections during loading.
 *   **Visual Evidence**: Captures full-page screenshots for security operators to audit.
 
-![Dynamic Sandbox Analysis](artifacts/phase4_dynamic.png)
-
-### Phase 5: AI Content Analysis & Web UI Dashboard
-An LLM content analyzer (Google Gemini) and interactive dashboard process the combined data to produce a final security verdict:
-*   **AI Content Evaluation**: Submits the final landing page text, screenshot, and raw metadata from previous phases to the Gemini API under a strict Pydantic schema structure.
-*   **Resilient Model Failover (Primary/Backup)**: Integrates primary model target `gemini-2.5-flash` with an automatic failover to `gemini-2.5-flash-lite` if the primary model fails due to rate limits, connection errors, or quota exhaustion (`RESOURCE_EXHAUSTED` 429).
-*   **Robust Exception Isolation**: Translates raw API exceptions into fine-grained client exceptions (like `LLMQuotaExhaustedError`). If both primary and backup models fail, the orchestrator gracefully isolates the failure, logs the error, and falls back to rendering the system and user prompts anyway.
-*   **Dynamic Threat Signals**: Maps AI findings into structured security signals (e.g. `BRAND_IMPERSONATION`, `DATA_HARVESTING`, `FAKE_LOGIN_PAGE`).
+### Phase 5: AI Content Analysis & Reasoning
+An LLM content analyzer (Google Gemini) processes the combined data to produce a final security verdict:
+*   **Primary/Backup Failover**: Integrates primary model `gemini-2.5-flash` with automatic failover to `gemini-2.5-flash-lite` if the primary model fails.
 *   **Composite Risk Scoring**: Computes a deterministic composite risk score combining signal weights, severity multipliers, and the model's confidence. Enforces safety-net score floors based on the recommended verdict (e.g., minimum score of 70 for a `BLOCK` recommended action) to guarantee threat scores match policy decisions.
-*   **Interactive Web UI Dashboard**: 
-    *   **Phase-Specific Tabs**: Renders detailed panels for Static, Threat Intel, Dynamic, and AI Analysis.
-    *   **Visual Elements**: Animated circular gauges for risk scores, redirection path timelines, and screenshot previews.
-    *   **Diagnostics Panel**: Features a copy-paste prompt testing panel showing the exact compiled system and user prompts to debug LLM output, even when active API calls fail.
-    *   **Enhanced UI Telemetry**: Displays exact LLM failure descriptions (e.g., API quota exceeded or connection timeouts) directly on the dashboard to assist operators in real-time troubleshooting.
+*   **Official Brand Suppression**: Automatically suppresses threat scores to `0.0` when the recommended action is `ALLOW` (e.g., official domains like `google.com`, `instagram.com`).
+
+### Phase 6: Persistence & Cache Management
+*   **Dual-Layer Cache**: Searches for cache keys under a prefix namespace (`scan:{cache_key}`) with an async Redis manager or falls back to an asynchronous thread-safe local `InMemoryCache` using monotonic clocks to prevent clock-drift issues.
+*   **Firestore Database History**: Persists complete, structured `FraudReport` documents in Google Cloud Firestore as a background task.
+*   **Scan History Sidebar**: Features a sliding side drawer to fetch, search, and filter past scans locally, reloading historical records instantly.
 
 ---
 
@@ -182,8 +136,8 @@ An LLM content analyzer (Google Gemini) and interactive dashboard process the co
 
 ### Prerequisites
 *   Python 3.10+
-*   Node.js (for Playwright system dependencies, optional but recommended)
-*   Redis server (optional, for Phase 3/4 caching)
+*   Google Cloud Firestore Database
+*   Redis server (optional, for Redis-backed caching)
 
 ### 1. Clone & Setup Virtual Environment
 ```bash
@@ -201,7 +155,7 @@ playwright install chromium
 ```
 
 ### 3. Configure Environment Variables
-Create a `.env` file in the root directory. Fill in your API keys (you can request developer keys from the providers' websites):
+Create a `.env` file in the root directory. Fill in your API keys:
 ```ini
 ENVIRONMENT=development
 DEBUG=True
@@ -214,9 +168,12 @@ URLHAUS_API_KEY=your_urlhaus_api_key_here
 ABUSEIPDB_API_KEY=your_abuse_ip_db_api_key_here
 GEMINI_API_KEY=your_gemini_api_key_here
 
-# Optional Configurations
-# REDIS_URL=redis://localhost:6379/0
-# DATABASE_URL=postgresql://user:pass@localhost:5421/db
+# Storage & Cache (Phase 6)
+FIRESTORE_PROJECT_ID=your_gcp_project_id
+FIRESTORE_DATABASE_ID=your_firestore_database_id
+GOOGLE_APPLICATION_CREDENTIALS=D:\Study\test\Audio\ai_engineer\DP\week10\AI_agent\your-service-account-key.json
+REDIS_URL=redis://localhost:6379
+CACHE_TTL=86400
 ```
 
 ---
@@ -248,7 +205,7 @@ To help test the scoring engine and pipeline robustness, the Web App features mo
 | **Scenario 1** | `*scenario1*.test` | Completely clean website mockup. | `LOW` Risk, 0 score. |
 | **Scenario 2** | `*scenario2*.test` | Blacklist detection simulator. | `MEDIUM` Risk, triggers `GOOGLE_BLACKLIST` & `VT_CONFIRMED_MALICIOUS`. |
 | **Scenario 3** | `*scenario3*.test` | Behavioral credential harvest simulation. | `MEDIUM` Risk, triggers `PHISHING_FORM_DETECTED`. |
-| **Scenario 4** | `*scenario4*.test` | Malicious IP/Proxy reputation simulator. | `MEDIUM` Risk, triggers `ABUSEIPDB_HIGH_CONFIDENCE_MALICIOUS`. |
+| **Scenario 4** | `*scenario4*.test` | Preserves IP/Proxy reputation simulation. | `MEDIUM` Risk, triggers `ABUSEIPDB_HIGH_CONFIDENCE_MALICIOUS`. |
 | **Scenario 5** | `*scenario5*.test` | API provider timeout / failure handling. | `LOW` Risk, confidence score drops to `0.8`. |
 | **Scenario 6** | `*scenario6*.test` | Cache Hit simulation. | `MEDIUM` Risk, instant payload return. |
 | **Scenario 7** | `*scenario7*.test` | All threat buckets compounded. | `HIGH` Risk, maximum composite score of `80`. |
