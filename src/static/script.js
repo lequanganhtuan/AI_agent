@@ -433,10 +433,13 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('ai-detected-brand').textContent = aiResult.content.detected_brand || 'None';
             document.getElementById('ai-fraud-category').textContent = aiResult.content.fraud_category || '-';
             
-            const rawConf = aiResult.content.confidence;
-            const cleanConf = (typeof rawConf === 'number') ? `${Math.round(rawConf * 100)}%` : '-';
-            document.getElementById('ai-brand-confidence').textContent = cleanConf;
-            document.getElementById('ai-confidence-value').textContent = cleanConf;
+            const rawVerdictConf = aiResult.content.confidence;
+            const cleanVerdictConf = (typeof rawVerdictConf === 'number') ? `${Math.round(rawVerdictConf * 100)}%` : '-';
+            document.getElementById('ai-confidence-value').textContent = cleanVerdictConf;
+
+            const rawBrandConf = aiResult.content.brand_confidence;
+            const cleanBrandConf = (typeof rawBrandConf === 'number') ? `${Math.round(rawBrandConf * 100)}%` : '-';
+            document.getElementById('ai-brand-confidence').textContent = cleanBrandConf;
 
             // Reasoning list
             const reasoningDetails = document.getElementById('ai-reasoning-details');

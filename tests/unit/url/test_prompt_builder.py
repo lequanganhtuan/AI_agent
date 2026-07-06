@@ -93,7 +93,7 @@ class TestSchema:
         parsed = json.loads(LLM_JSON_SCHEMA)
         expected_keys = {
             "website_purpose", "is_phishing", "fraud_category",
-            "detected_brand", "brand_confidence", "reasoning",
+            "detected_brand", "brand_confidence", "verdict_confidence", "reasoning",
             "summary", "recommended_action", "risk_level", "findings"
         }
         assert set(parsed["properties"].keys()) == expected_keys

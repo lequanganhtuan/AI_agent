@@ -22,6 +22,7 @@ def valid_llm_output_data():
         "fraud_category": "PHISHING",
         "detected_brand": "paypal",
         "brand_confidence": 0.95,
+        "verdict_confidence": 0.95,
         "reasoning": [" Spoofed PayPal logo ", "  Credential exfiltration form  "],
         "summary": "  High probability phishing attempt targeting PayPal accounts.  ",
         "recommended_action": "BLOCK",

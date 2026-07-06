@@ -71,6 +71,7 @@ def content_analysis_result():
         detected_brand=None,
         fraud_category=FraudCategory.LEGITIMATE,
         confidence=1.0,
+        brand_confidence=1.0,
         summary="Test",
         reasoning=[],
         findings=[],

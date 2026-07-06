@@ -74,6 +74,7 @@ class LLMOutput(BaseModel):
     fraud_category: FraudCategory
     detected_brand: Optional[str] = None
     brand_confidence: float = Field(..., ge=0.0, le=1.0)
+    verdict_confidence: float = Field(..., ge=0.0, le=1.0)
     reasoning: list[str]
     summary: str
     recommended_action: RecommendedAction
@@ -87,6 +88,7 @@ class ContentAnalysisResult(BaseModel):
     detected_brand: Optional[str] = None
     fraud_category: FraudCategory
     confidence: float = Field(..., ge=0.0, le=1.0)
+    brand_confidence: float = Field(..., ge=0.0, le=1.0)
     summary: str
     reasoning: list[str]
     findings: list[str]

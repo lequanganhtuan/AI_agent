@@ -63,6 +63,7 @@ def test_llm_output():
         "fraud_category": FraudCategory.PHISHING,
         "detected_brand": "Chase Bank",
         "brand_confidence": 0.95,
+        "verdict_confidence": 0.95,
         "reasoning": ["Uses Chase logo", "Hosted on unrecognized domain"],
         "summary": "Phishing site Targeting Chase Bank",
         "recommended_action": RecommendedAction.BLOCK,
@@ -80,6 +81,7 @@ def test_content_analysis_result():
         "detected_brand": None,
         "fraud_category": FraudCategory.LEGITIMATE,
         "confidence": 0.99,
+        "brand_confidence": 0.0,
         "summary": "Clean website",
         "reasoning": ["No threats found"],
         "findings": ["No threats found"],
@@ -88,6 +90,7 @@ def test_content_analysis_result():
     model = ContentAnalysisResult(**res_data)
     assert model.fraud_category == FraudCategory.LEGITIMATE
     assert model.confidence == 0.99
+    assert model.brand_confidence == 0.0
 
 def test_ai_signal():
     sig = AISignal(
@@ -115,6 +118,7 @@ def test_ai_analysis_result():
             detected_brand="Google",
             fraud_category=FraudCategory.BRAND_IMPERSONATION,
             confidence=0.95,
+            brand_confidence=0.95,
             summary="Impersonates Google login",
             reasoning=["Google branding used"],
             findings=["Google logo usage"],
@@ -141,13 +145,14 @@ def test_ai_analysis_result():
 def test_confidence_range_validation():
     from pydantic import ValidationError
 
-    # Test LLMOutput brand_confidence boundary
+    # Test LLMOutput brand_confidence and verdict_confidence boundary
     output_data = {
         "website_purpose": "Test site",
         "is_phishing": False,
         "fraud_category": FraudCategory.LEGITIMATE,
         "detected_brand": None,
         "brand_confidence": 1.5,  # Invalid (> 1.0)
+        "verdict_confidence": 0.95,
         "reasoning": [],
         "summary": "Test summary",
         "recommended_action": RecommendedAction.ALLOW,
@@ -157,21 +162,28 @@ def test_confidence_range_validation():
     with pytest.raises(ValidationError):
         LLMOutput(**output_data)
 
-    output_data["brand_confidence"] = -0.5  # Invalid (< 0.0)
+    output_data["brand_confidence"] = 0.95
+    output_data["verdict_confidence"] = -0.5  # Invalid (< 0.0)
     with pytest.raises(ValidationError):
         LLMOutput(**output_data)
 
-    # Test ContentAnalysisResult confidence boundary
+    # Test ContentAnalysisResult confidence boundaries
     res_data = {
         "website_purpose": "Test site",
         "detected_brand": None,
         "fraud_category": FraudCategory.LEGITIMATE,
         "confidence": -0.1,  # Invalid
+        "brand_confidence": 0.95,
         "summary": "Test summary",
         "reasoning": [],
         "findings": [],
         "recommended_action": RecommendedAction.ALLOW
     }
+    with pytest.raises(ValidationError):
+        ContentAnalysisResult(**res_data)
+
+    res_data["confidence"] = 0.95
+    res_data["brand_confidence"] = -0.5  # Invalid
     with pytest.raises(ValidationError):
         ContentAnalysisResult(**res_data)
 
