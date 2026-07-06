@@ -43,9 +43,11 @@ class AIRiskCalculator:
                 signal_score = weight * multiplier * signal.confidence
                 total_score += signal_score
 
-        # Enforce minimum risk score floors based on the recommended action
+        # Enforce minimum/maximum risk score boundaries based on the recommended action
         if recommended_action:
-            if recommended_action == RecommendedAction.BLOCK:
+            if recommended_action == RecommendedAction.ALLOW:
+                total_score = 0.0
+            elif recommended_action == RecommendedAction.BLOCK:
                 total_score = max(total_score, 70.0)
             elif recommended_action == RecommendedAction.WARN:
                 total_score = max(total_score, 40.0)
