@@ -1,5 +1,5 @@
-from typing import List
-from src.analyzers.url.ai_content_analysis.models import AIRisk, AISignal, RiskLevel
+from typing import List, Optional
+from src.analyzers.url.ai_content_analysis.models import AIRisk, AISignal, RiskLevel, RecommendedAction
 from src.analyzers.url.ai_content_analysis.risk.registry import (
     SIGNAL_WEIGHT_MAP,
     SEVERITY_MULTIPLIER,
@@ -14,13 +14,13 @@ class AIRiskCalculator:
     This calculation process is completely deterministic and independent of the LLM.
     """
 
-    def calculate(self, signals: List[AISignal]) -> AIRisk:
+    def calculate(self, signals: List[AISignal], recommended_action: Optional[RecommendedAction] = None) -> AIRisk:
         """Executes the risk calculation pipeline sequentially.
         
         Pipeline:
             _compute_score() -> _classify_level() -> _build_summary() -> AIRisk
         """
-        score = self._compute_score(signals)
+        score = self._compute_score(signals, recommended_action)
         level = self._classify_level(score)
         summary = self._build_summary(signals)
 
@@ -30,20 +30,29 @@ class AIRiskCalculator:
             summary=summary
         )
 
-    def _compute_score(self, signals: List[AISignal]) -> float:
+    def _compute_score(self, signals: List[AISignal], recommended_action: Optional[RecommendedAction] = None) -> float:
         """Computes the raw composite risk score based on signal weights, multipliers, and confidence."""
-        if not signals:
-            return 0.0
-
         total_score = 0.0
-        for signal in signals:
-            weight = SIGNAL_WEIGHT_MAP.get(signal.signal, 0.0)
-            
-            # Severity mapping using Enum directly
-            multiplier = SEVERITY_MULTIPLIER.get(signal.severity, 1.0)
-            
-            signal_score = weight * multiplier * signal.confidence
-            total_score += signal_score
+        if signals:
+            for signal in signals:
+                weight = SIGNAL_WEIGHT_MAP.get(signal.signal, 0.0)
+                
+                # Severity mapping using Enum directly
+                multiplier = SEVERITY_MULTIPLIER.get(signal.severity, 1.0)
+                
+                signal_score = weight * multiplier * signal.confidence
+                total_score += signal_score
+
+        # Enforce minimum/maximum risk score boundaries based on the recommended action
+        if recommended_action:
+            if recommended_action == RecommendedAction.ALLOW:
+                total_score = 0.0
+            elif recommended_action == RecommendedAction.BLOCK:
+                total_score = max(total_score, 70.0)
+            elif recommended_action == RecommendedAction.WARN:
+                total_score = max(total_score, 40.0)
+            elif recommended_action == RecommendedAction.MONITOR:
+                total_score = max(total_score, 20.0)
 
         # Clamp composite score range to [0.0, 100.0]
         return max(0.0, min(total_score, 100.0))

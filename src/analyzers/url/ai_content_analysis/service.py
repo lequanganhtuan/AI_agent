@@ -53,7 +53,7 @@ class AIAnalysisService:
         signals = self.signal_generator.generate(content_result)
 
         # Step 6: Calculate risk scores and levels from signals
-        risk = self.risk_engine.calculate_risk(signals)
+        risk = self.risk_engine.calculate_risk(signals, content_result.recommended_action)
 
         logger.info("Completed AI Content Analysis")
 

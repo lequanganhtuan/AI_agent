@@ -107,3 +107,34 @@ class TestAIRiskEngine:
         assert risk.score == 15.0
         assert risk.level == RiskLevel.LOW
         assert "Urgency Language" in risk.summary
+
+    def test_risk_score_floors_by_recommended_action(self, engine):
+        from src.analyzers.url.ai_content_analysis.models import RecommendedAction
+        
+        # Test empty signals with BLOCK verdict should hit the floor of 70.0 (HIGH)
+        risk_block = engine.calculate_risk([], RecommendedAction.BLOCK)
+        assert risk_block.score == 70.0
+        assert risk_block.level == RiskLevel.HIGH
+        
+        # Test empty signals with WARN verdict should hit the floor of 40.0 (MEDIUM)
+        risk_warn = engine.calculate_risk([], RecommendedAction.WARN)
+        assert risk_warn.score == 40.0
+        assert risk_warn.level == RiskLevel.MEDIUM
+        
+        # Test empty signals with MONITOR verdict should hit the floor of 20.0 (LOW)
+        risk_monitor = engine.calculate_risk([], RecommendedAction.MONITOR)
+        assert risk_monitor.score == 20.0
+        assert risk_monitor.level == RiskLevel.LOW
+        
+        # Test empty signals with ALLOW verdict should have 0.0 score (LOW)
+        risk_allow = engine.calculate_risk([], RecommendedAction.ALLOW)
+        assert risk_allow.score == 0.0
+        assert risk_allow.level == RiskLevel.LOW
+
+        # Test non-empty signals with ALLOW verdict should suppress score to 0.0
+        signals = [
+            AISignal(signal=AISignalType.FAKE_LOGIN_PAGE, severity=Severity.HIGH, confidence=1.0, description="Fake Login")
+        ]
+        risk_allow_with_signals = engine.calculate_risk(signals, RecommendedAction.ALLOW)
+        assert risk_allow_with_signals.score == 0.0
+        assert risk_allow_with_signals.level == RiskLevel.LOW

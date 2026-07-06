@@ -10,9 +10,11 @@ from src.analyzers.url.ai_content_analysis.exceptions import (
     LLMConnectionError,
     LLMTimeoutError,
     LLMRateLimitError,
+    LLMQuotaExhaustedError,
 )
 from src.analyzers.url.ai_content_analysis.client.gemini_client import GeminiClient
 from src.analyzers.url.ai_content_analysis.client.retry import execute_with_retry
+
 
 
 # ─── Retry Module Tests ──────────────────────────────────────────────────────
@@ -225,3 +227,84 @@ class TestGeminiClientErrorHandling:
         with pytest.raises(AIContentAnalysisError) as exc_info:
             await client.generate(req)
         assert "fatal API error" in str(exc_info.value)
+
+    @pytest.mark.anyio
+    async def test_quota_exhausted_error_translation(self):
+        client = GeminiClient(api_key="test_key")
+        
+        # Simulating a quota failure message from Gemini API
+        mock_generate = AsyncMock(side_effect=APIError(
+            code=429,
+            response_json={'error': {'message': 'RESOURCE_EXHAUSTED: You exceeded your current quota.'}},
+            response=MagicMock()
+        ))
+        client.client.aio.models.generate_content = mock_generate
+        
+        req = PromptRequest(
+            system_prompt="sys", user_prompt="usr",
+            response_schema=LLMOutput, vision_enabled=False
+        )
+        
+        with pytest.raises(LLMQuotaExhaustedError):
+            await client._generate_once(req)
+
+    @pytest.mark.anyio
+    async def test_primary_model_fallback_to_backup(self, monkeypatch):
+        # Prevent actually calling execute_with_retry to wait / sleep
+        monkeypatch.setattr(asyncio, "sleep", AsyncMock())
+        
+        client = GeminiClient(api_key="test_key")
+        
+        # Primary call fails with quota error, backup call succeeds
+        call_count = 0
+        async def mock_generate_content(model, contents, config):
+            nonlocal call_count
+            call_count += 1
+            if model == "gemini-2.5-flash":
+                raise APIError(
+                    code=429,
+                    response_json={'error': {'message': 'RESOURCE_EXHAUSTED'}},
+                    response=MagicMock()
+                )
+            elif model == "gemini-2.5-flash-lite":
+                mock_resp = MagicMock()
+                mock_resp.text = "Backup Success"
+                mock_resp.usage_metadata = None
+                return mock_resp
+            raise ValueError(f"Unexpected model: {model}")
+
+        client.client.aio.models.generate_content = AsyncMock(side_effect=mock_generate_content)
+        
+        req = PromptRequest(
+            system_prompt="sys", user_prompt="usr",
+            response_schema=LLMOutput, vision_enabled=False
+        )
+        
+        result = await client.generate(req)
+        assert result == "Backup Success"
+        # 1 call for primary (no retry because LLMQuotaExhaustedError is not caught by retry loop), 1 call for backup
+        assert call_count == 2
+
+    @pytest.mark.anyio
+    async def test_backup_model_also_fails(self, monkeypatch):
+        monkeypatch.setattr(asyncio, "sleep", AsyncMock())
+        
+        client = GeminiClient(api_key="test_key")
+        
+        # Both models fail
+        async def mock_generate_content(model, contents, config):
+            raise APIError(
+                code=429,
+                response_json={'error': {'message': 'RESOURCE_EXHAUSTED'}},
+                response=MagicMock()
+            )
+
+        client.client.aio.models.generate_content = AsyncMock(side_effect=mock_generate_content)
+        
+        req = PromptRequest(
+            system_prompt="sys", user_prompt="usr",
+            response_schema=LLMOutput, vision_enabled=False
+        )
+        
+        with pytest.raises(LLMQuotaExhaustedError):
+            await client.generate(req)

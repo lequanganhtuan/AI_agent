@@ -24,6 +24,7 @@ VALID_LLM_RESPONSE = """
     "fraud_category": "PHISHING",
     "detected_brand": "Chase",
     "brand_confidence": 0.95,
+    "verdict_confidence": 0.95,
     "reasoning": ["Spoofed Chase banking portal logo"],
     "summary": "Phishing impersonating Chase",
     "recommended_action": "BLOCK",

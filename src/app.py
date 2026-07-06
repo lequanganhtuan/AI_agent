@@ -1,11 +1,12 @@
 import os
 import sys
 import asyncio
+import logging
 
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -14,8 +15,24 @@ from src.analyzers.url.preprocessing.url_analyzer import URLAnalyzer
 from src.analyzers.url.static.static_url_analyzer import StaticURLAnalyzer
 from src.analyzers.url.threat_intelligence.orchestrator import ThreatIntelOrchestrator
 from src.core.models import StaticAnalysisResult, AnalysisContext
+from src.core.cache import get_cache
+from src.core.database import FirestoreRepository
+from src.core.report.builder import ReportBuilder
+from src.core.settings import settings
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="URL Analyzer Web Demo")
+
+cache = get_cache()
+db_repo = FirestoreRepository()
+
+async def persist_report_data(report):
+    try:
+        await db_repo.save_report(report)
+    except Exception as db_err:
+        logger.error(f"Failed to persist FraudReport to Firestore: {str(db_err)}")
 
 # Determine the absolute path to the static folder
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -44,7 +61,7 @@ async def read_root():
     return "<h1>Static directory not found!</h1>"
 
 @app.post("/api/analyze")
-async def analyze_url(req: AnalyzeRequest):
+async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
     try:
         url_lower = req.url.lower().strip()
         
@@ -232,6 +249,7 @@ async def analyze_url(req: AnalyzeRequest):
                         detected_brand="Google",
                         fraud_category=FraudCategory.BRAND_IMPERSONATION,
                         confidence=0.95,
+                        brand_confidence=0.95,
                         summary="Brand impersonation targeting Google authentication.",
                         reasoning=["Logo matches Google OAuth signature"],
                         findings=["Fake Google sign-in prompt"],
@@ -251,6 +269,7 @@ async def analyze_url(req: AnalyzeRequest):
                         detected_brand="PayPal",
                         fraud_category=FraudCategory.PHISHING,
                         confidence=0.98,
+                        brand_confidence=0.98,
                         summary="Phishing attempt exfiltrating credentials.",
                         reasoning=["Form contains credential capture", "Fake login page observed"],
                         findings=["Password exfiltration script", "Suspicious login inputs"],
@@ -271,6 +290,7 @@ async def analyze_url(req: AnalyzeRequest):
                         detected_brand=None,
                         fraud_category=FraudCategory.LEGITIMATE,
                         confidence=0.99,
+                        brand_confidence=0.0,
                         summary="No threat signs detected by AI.",
                         reasoning=["Benign content only"],
                         findings=["Safe content only"],
@@ -282,7 +302,7 @@ async def analyze_url(req: AnalyzeRequest):
                     user_prompt=mock_user_prompt
                 )
 
-            return AnalysisContext(
+            context = AnalysisContext(
                 validation=val_res,
                 static=static_res,
                 threat_intel=threat_intel,
@@ -292,6 +312,7 @@ async def analyze_url(req: AnalyzeRequest):
                 ),
                 ai=ai_res
             )
+            return ReportBuilder.build(context)
 
         url_analyzer = URLAnalyzer()
         static_analyzer = StaticURLAnalyzer()
@@ -304,6 +325,14 @@ async def analyze_url(req: AnalyzeRequest):
             # If validation fails, return an error
             raise HTTPException(status_code=400, detail=validation_result.error_message or "URL validation failed.")
             
+        # Caching check
+        cache_key = validation_result.cache_key
+        if cache_key:
+            cached_report = await cache.get(cache_key)
+            if cached_report:
+                logger.info(f"Returning cached FraudReport for URL: {req.url}")
+                return cached_report
+
         # 2. Parallel execution of Static Analysis (Phase 2) and Threat Intelligence (Phase 3)
         static_task = asyncio.to_thread(static_analyzer.analyze, validation_result)
         threat_task = orchestrator.analyze_url(validation_result)
@@ -338,10 +367,48 @@ async def analyze_url(req: AnalyzeRequest):
         ai_orchestrator = AIContentAnalysisOrchestrator()
         await ai_orchestrator.analyze(context)
         
-        return context
-
+        # Convert to decoupled FraudReport Pydantic representation
+        report = ReportBuilder.build(context)
+        
+        # Caching set
+        if cache_key:
+            await cache.set(cache_key, report, ttl=settings.cache_ttl)
+            
+        # Persist to database in background
+        background_tasks.add_task(persist_report_data, report)
+        
+        return report
         
     except Exception as e:
         import traceback
         traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/history")
+async def get_scan_history(
+    limit: int = 20,
+    search: str | None = None,
+    verdict: str | None = None,
+    risk: str | None = None
+):
+    try:
+        return await db_repo.get_recent_reports(
+            limit=limit,
+            search=search,
+            verdict=verdict,
+            risk=risk
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/history/{scan_id}")
+async def get_historical_scan(scan_id: str):
+    try:
+        report = await db_repo.get_report_by_id(scan_id)
+        if not report:
+            raise HTTPException(status_code=404, detail="Historical report not found.")
+        return report
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

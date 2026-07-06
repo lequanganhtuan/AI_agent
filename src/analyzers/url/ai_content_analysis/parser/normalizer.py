@@ -52,7 +52,8 @@ class AIResponseNormalizer:
             website_purpose=output.website_purpose.strip(),
             detected_brand=normalized_brand,
             fraud_category=output.fraud_category,
-            confidence=output.brand_confidence,  # Map LLM's brand confidence directly to the domain confidence
+            confidence=output.verdict_confidence,  # Map LLM's verdict_confidence directly to overall confidence
+            brand_confidence=output.brand_confidence,  # Keep brand_confidence separate
             summary=clean_summary,
             reasoning=clean_reasoning,
             findings=clean_findings,

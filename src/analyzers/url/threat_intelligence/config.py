@@ -102,7 +102,7 @@ ABUSEIPDB_TIMEOUT_SECONDS: int = 5
 
 # Logging
 
-LOG_REQUEST_START: str = "Sending request to provider: %s"
+LOG_REQUEST_START: str = "Sending request to provider: %s (URL: %s)"
 LOG_REQUEST_SUCCESS: str = "Provider %s completed successfully."
 LOG_REQUEST_FAILURE: str = "Provider %s failed."
 LOG_RATE_LIMIT: str = "Provider %s exceeded rate limit."

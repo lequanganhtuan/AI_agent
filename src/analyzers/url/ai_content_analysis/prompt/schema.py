@@ -25,6 +25,12 @@ LLM_JSON_SCHEMA = """
       "maximum": 1.0,
       "description": "Confidence score for the brand detection, ranging from 0.0 (no confidence) to 1.0 (absolute certainty)."
     },
+    "verdict_confidence": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Confidence score for the overall classification and recommended action, ranging from 0.0 (no confidence) to 1.0 (absolute certainty)."
+    },
     "reasoning": {
       "type": "array",
       "items": { "type": "string" },
@@ -56,6 +62,7 @@ LLM_JSON_SCHEMA = """
     "fraud_category",
     "detected_brand",
     "brand_confidence",
+    "verdict_confidence",
     "reasoning",
     "summary",
     "recommended_action",

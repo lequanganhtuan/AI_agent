@@ -17,7 +17,9 @@ from src.analyzers.url.ai_content_analysis.exceptions import (
     LLMConnectionError,
     LLMTimeoutError,
     LLMRateLimitError,
+    LLMQuotaExhaustedError,
 )
+
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +34,26 @@ class GeminiClient(BaseLLMClient):
 
     async def generate(self, request: PromptRequest) -> str:
         """Asynchronously triggers the LLM generation flow on the Gemini client wrapped with a retry policy."""
-        return await execute_with_retry(self._generate_once, request)
+        try:
+            logger.info(f"Attempting content generation with primary model: {config.model_name}")
+            return await execute_with_retry(self._generate_once, request, model_name=config.model_name)
+        except (LLMQuotaExhaustedError, LLMRateLimitError, LLMConnectionError) as e:
+            if config.backup_model_name and config.backup_model_name != config.model_name:
+                logger.warning(
+                    f"Primary model {config.model_name} failed: {str(e)}. "
+                    f"Initiating fallback to backup model: {config.backup_model_name}"
+                )
+                try:
+                    return await execute_with_retry(self._generate_once, request, model_name=config.backup_model_name)
+                except Exception as backup_err:
+                    logger.error(f"Backup model {config.backup_model_name} also failed: {str(backup_err)}")
+                    raise backup_err
+            raise e
 
-    async def _generate_once(self, request: PromptRequest) -> str:
+    async def _generate_once(self, request: PromptRequest, model_name: Optional[str] = None) -> str:
         """Helper executing a single call to the live Gemini API endpoint."""
+        selected_model = model_name or config.model_name
+
         # 1. Prepare contents array structure (User Context)
         contents = [request.user_prompt]
 
@@ -68,7 +86,7 @@ class GeminiClient(BaseLLMClient):
         try:
             # client.aio.models.generate_content is the official async content generation method
             response = await self.client.aio.models.generate_content(
-                model=config.model_name,
+                model=selected_model,
                 contents=contents,
                 config=gen_config
             )
@@ -85,7 +103,7 @@ class GeminiClient(BaseLLMClient):
             } if usage else None
 
             logger.info(
-                f"LLM request completed. model_name={config.model_name} "
+                f"LLM request completed. model_name={selected_model} "
                 f"request_duration={duration:.4f}s token_usage={usage_info}"
             )
 
@@ -94,7 +112,16 @@ class GeminiClient(BaseLLMClient):
 
         # 5. Exception translation mapping layer to keep orchestrator decoupled
         except APIError as e:
+            err_msg_lower = str(e).lower()
+            is_quota = (
+                "quota" in err_msg_lower
+                or "resource_exhausted" in err_msg_lower
+                or "resource exceeded" in err_msg_lower
+                or "limit exceeded" in err_msg_lower
+            )
             if e.code == 429:
+                if is_quota:
+                    raise LLMQuotaExhaustedError(f"Gemini quota exhausted error: {str(e)}") from e
                 raise LLMRateLimitError(f"Gemini rate limit error: {str(e)}") from e
             elif e.code == 408:
                 raise LLMTimeoutError(f"Gemini timeout error: {str(e)}") from e

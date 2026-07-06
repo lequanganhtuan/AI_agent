@@ -18,8 +18,14 @@
     
     <div class="container">
         <header class="header">
-            <h1>URL Analyzer Platform</h1>
-            <p>Advanced real-time risk assessment and multi-phase URL analysis.</p>
+            <div class="header-main">
+                <h1>URL Analyzer Platform</h1>
+                <p>Advanced real-time risk assessment and multi-phase URL analysis.</p>
+            </div>
+            <button id="history-btn" class="history-toggle-btn">
+                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="history-icon"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <span>History</span>
+            </button>
         </header>
 
         <main>
@@ -316,6 +322,10 @@
                                         <span class="meta-label">Verdict:</span>
                                         <span id="ai-action-badge" class="status-pill status-clean">ALLOW</span>
                                     </div>
+                                    <div class="meta-row">
+                                        <span class="meta-label">Confidence:</span>
+                                        <span id="ai-confidence-value" class="meta-value">-</span>
+                                    </div>
                                 </div>
                             </div>
 
@@ -411,6 +421,29 @@
 
             </section>
         </main>
+    </div>
+
+    <!-- History Sliding Side Drawer -->
+    <div class="history-drawer-overlay" id="history-overlay"></div>
+    <div class="history-drawer" id="history-drawer">
+        <div class="drawer-header">
+            <h3>Scan History</h3>
+            <button class="drawer-close" id="drawer-close">&times;</button>
+        </div>
+        <div class="drawer-filters">
+            <input type="text" id="history-search" placeholder="Search URL..." autocomplete="off">
+            <select id="history-verdict-filter">
+                <option value="ALL">All Verdicts</option>
+                <option value="BLOCK">Block</option>
+                <option value="WARN">Warn</option>
+                <option value="ALLOW">Allow</option>
+            </select>
+        </div>
+        <div class="drawer-content" id="history-list">
+            <div class="history-loading hidden" id="history-loading">Loading historical records...</div>
+            <div class="history-empty" id="history-empty">No past scans found.</div>
+            <div class="history-items-container" id="history-items-container"></div>
+        </div>
     </div>
 
     <script src="/static/script.js?v=1.0.1"></script>

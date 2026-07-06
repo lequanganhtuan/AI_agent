@@ -138,4 +138,7 @@ artifacts/
 # Scratch keys testing
 api_key_test/
 
+# GCP credentials key files
+second-core-501608-a5-43efebe14a17.json
+
 

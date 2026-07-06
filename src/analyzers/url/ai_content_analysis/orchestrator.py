@@ -6,6 +6,7 @@ from src.analyzers.url.ai_content_analysis.factory import create_ai_analysis_ser
 from src.analyzers.url.ai_content_analysis.input.context_builder import build_context
 from src.analyzers.url.ai_content_analysis.prompt.builder import build_prompt
 from src.analyzers.url.ai_content_analysis.models import AIAnalysisResult
+from src.analyzers.url.ai_content_analysis.exceptions import AIContentAnalysisError
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +25,26 @@ class AIContentAnalysisOrchestrator:
         try:
             result = await self.service.analyze(context, html)
             context.ai = result
+        except AIContentAnalysisError as e:
+            logger.error(f"AI content analysis failed: {str(e)}")
+            # Try to build prompts so the copy-paste panel is still populated for testing
+            system_prompt = None
+            user_prompt = None
+            try:
+                analysis_input = build_context(context, html)
+                prompt_request = build_prompt(analysis_input)
+                system_prompt = prompt_request.system_prompt
+                user_prompt = prompt_request.user_prompt
+            except Exception as pe:
+                logger.error(f"Failed to build prompts for fallback: {str(pe)}")
+            
+            context.ai = AIAnalysisResult(
+                error=str(e),
+                system_prompt=system_prompt,
+                user_prompt=user_prompt
+            )
         except Exception as e:
-            logger.error(f"AI content analysis failed: {str(e)}", exc_info=True)
+            logger.error(f"AI content analysis failed unexpectedly: {str(e)}", exc_info=True)
             # Try to build prompts so the copy-paste panel is still populated for testing
             system_prompt = None
             user_prompt = None
