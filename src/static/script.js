@@ -794,4 +794,157 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.homoglyph_detected) findings.push(`Homoglyph usage found`);
         return findings;
     }
+
+    // --- HISTORY SIDE DRAWER LOGIC ---
+    const historyBtn = document.getElementById('history-btn');
+    const historyDrawer = document.getElementById('history-drawer');
+    const historyOverlay = document.getElementById('history-overlay');
+    const drawerClose = document.getElementById('drawer-close');
+    const historySearch = document.getElementById('history-search');
+    const historyFilter = document.getElementById('history-verdict-filter');
+    const historyItemsContainer = document.getElementById('history-items-container');
+    const historyLoading = document.getElementById('history-loading');
+    const historyEmpty = document.getElementById('history-empty');
+
+    let allScans = []; // Hold all loaded scans in memory for local filtering
+
+    if (historyBtn && historyDrawer && historyOverlay && drawerClose) {
+        historyBtn.addEventListener('click', openHistoryDrawer);
+        drawerClose.addEventListener('click', closeHistoryDrawer);
+        historyOverlay.addEventListener('click', closeHistoryDrawer);
+
+        historySearch.addEventListener('input', applyFilters);
+        historyFilter.addEventListener('change', applyFilters);
+    }
+
+    async function openHistoryDrawer() {
+        historyDrawer.classList.add('drawer-open');
+        historyOverlay.classList.add('drawer-open');
+        await fetchHistory();
+    }
+
+    function closeHistoryDrawer() {
+        historyDrawer.classList.remove('drawer-open');
+        historyOverlay.classList.remove('drawer-open');
+    }
+
+    async function fetchHistory() {
+        historyLoading.classList.remove('hidden');
+        historyEmpty.classList.add('hidden');
+        historyItemsContainer.innerHTML = '';
+        
+        try {
+            const response = await fetch('/api/history?limit=30');
+            if (!response.ok) throw new Error('Failed to fetch scan history');
+            
+            allScans = await response.json();
+            renderScansList(allScans);
+        } catch (err) {
+            console.error(err);
+            historyItemsContainer.innerHTML = `<div class="error-message" style="color: var(--risk-high); padding: 1rem; text-align: center;">Error loading history.</div>`;
+        } finally {
+            historyLoading.classList.add('hidden');
+        }
+    }
+
+    function renderScansList(scans) {
+        historyItemsContainer.innerHTML = '';
+        if (scans.length === 0) {
+            historyEmpty.classList.remove('hidden');
+            return;
+        }
+        historyEmpty.classList.add('hidden');
+
+        scans.forEach(scan => {
+            const card = document.createElement('div');
+            card.className = 'history-item-card';
+            card.setAttribute('data-id', scan.id);
+            
+            // Format time difference
+            const formattedTime = formatTimeAgo(new Date(scan.timestamp));
+            
+            // Verdict mapping to class
+            const verdict = (scan.verdict || 'ALLOW').toUpperCase();
+            let pillClass = 'pill-low';
+            if (verdict === 'BLOCK') {
+                pillClass = scan.score >= 90 ? 'pill-critical' : 'pill-high';
+            } else if (verdict === 'WARN') {
+                pillClass = 'pill-medium';
+            }
+
+            card.innerHTML = `
+                <div class="history-item-url" title="${scan.url}">${scan.url}</div>
+                <div class="history-item-meta">
+                    <span>${formattedTime}</span>
+                    <span class="history-item-score-pill ${pillClass}">
+                        ${verdict} (${Math.round(scan.score)})
+                    </span>
+                </div>
+            `;
+
+            card.addEventListener('click', () => loadHistoricalScan(scan.id));
+            historyItemsContainer.appendChild(card);
+        });
+    }
+
+    function applyFilters() {
+        const query = historySearch.value.toLowerCase().trim();
+        const selectedVerdict = historyFilter.value;
+
+        const filtered = allScans.filter(scan => {
+            const matchesSearch = scan.url.toLowerCase().includes(query);
+            const matchesVerdict = selectedVerdict === 'ALL' || (scan.verdict || 'ALLOW').toUpperCase() === selectedVerdict;
+            return matchesSearch && matchesVerdict;
+        });
+
+        renderScansList(filtered);
+    }
+
+    async function loadHistoricalScan(scanId) {
+        closeHistoryDrawer();
+        
+        // Show indicator on analyzer button
+        input.disabled = true;
+        btnText.classList.add('hidden');
+        spinner.classList.remove('hidden');
+        errorMsg.classList.add('hidden');
+
+        try {
+            const response = await fetch(`/api/history/${scanId}`);
+            if (!response.ok) throw new Error('Failed to retrieve historical record');
+            
+            const data = await response.json();
+            
+            // Load URL to input
+            input.value = data.validation.normalized_url;
+            
+            // Show results
+            resultsSection.classList.remove('hidden');
+            displayResults(data);
+            
+            // Scroll to results
+            resultsSection.scrollIntoView({ behavior: 'smooth' });
+        } catch (err) {
+            errorMsg.textContent = err.message;
+            errorMsg.classList.remove('hidden');
+        } finally {
+            input.disabled = false;
+            btnText.classList.remove('hidden');
+            spinner.classList.add('hidden');
+        }
+    }
+
+    function formatTimeAgo(date) {
+        const seconds = Math.floor((new Date() - date) / 1000);
+        if (seconds < 60) return 'Just now';
+        
+        const minutes = Math.floor(seconds / 60);
+        if (minutes < 60) return `${minutes} min${minutes > 1 ? 's' : ''} ago`;
+        
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+        
+        const days = Math.floor(hours / 24);
+        return `${days} day${days > 1 ? 's' : ''} ago`;
+    }
 });

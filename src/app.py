@@ -1,11 +1,12 @@
 import os
 import sys
 import asyncio
+import logging
 
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -14,8 +15,22 @@ from src.analyzers.url.preprocessing.url_analyzer import URLAnalyzer
 from src.analyzers.url.static.static_url_analyzer import StaticURLAnalyzer
 from src.analyzers.url.threat_intelligence.orchestrator import ThreatIntelOrchestrator
 from src.core.models import StaticAnalysisResult, AnalysisContext
+from src.core.cache.scan_cache import get_cache
+from src.core.database.firestore_repo import FirestoreRepository
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="URL Analyzer Web Demo")
+
+cache = get_cache()
+db_repo = FirestoreRepository()
+
+async def persist_scan_data(ctx: AnalysisContext):
+    try:
+        await db_repo.save_scan(ctx)
+    except Exception as db_err:
+        logger.error(f"Failed to persist scan context to Firestore: {str(db_err)}")
 
 # Determine the absolute path to the static folder
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -44,7 +59,7 @@ async def read_root():
     return "<h1>Static directory not found!</h1>"
 
 @app.post("/api/analyze")
-async def analyze_url(req: AnalyzeRequest):
+async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
     try:
         url_lower = req.url.lower().strip()
         
@@ -304,6 +319,14 @@ async def analyze_url(req: AnalyzeRequest):
             # If validation fails, return an error
             raise HTTPException(status_code=400, detail=validation_result.error_message or "URL validation failed.")
             
+        # Caching check
+        cache_key = validation_result.cache_key
+        if cache_key:
+            cached_context = await cache.get(cache_key)
+            if cached_context:
+                logger.info(f"Returning cached context for URL: {req.url}")
+                return cached_context
+
         # 2. Parallel execution of Static Analysis (Phase 2) and Threat Intelligence (Phase 3)
         static_task = asyncio.to_thread(static_analyzer.analyze, validation_result)
         threat_task = orchestrator.analyze_url(validation_result)
@@ -338,10 +361,35 @@ async def analyze_url(req: AnalyzeRequest):
         ai_orchestrator = AIContentAnalysisOrchestrator()
         await ai_orchestrator.analyze(context)
         
+        # Caching set
+        if cache_key:
+            await cache.set(cache_key, context)
+            
+        # Persist to database in background
+        background_tasks.add_task(persist_scan_data, context)
+        
         return context
-
         
     except Exception as e:
         import traceback
         traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/history")
+async def get_scan_history(limit: int = 20):
+    try:
+        return await db_repo.get_recent_scans(limit=limit)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/history/{scan_id}")
+async def get_historical_scan(scan_id: str):
+    try:
+        context = await db_repo.get_scan_by_id(scan_id)
+        if not context:
+            raise HTTPException(status_code=404, detail="Historical scan not found.")
+        return context
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

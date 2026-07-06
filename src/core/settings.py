@@ -93,5 +93,16 @@ class Settings(BaseSettings):
         alias="DATABASE_URL",
     )
 
+    # Firestore (Phase 6)
+    firestore_project_id: str | None = Field(
+        default=None,
+        alias="FIRESTORE_PROJECT_ID",
+    )
+
+    google_application_credentials: str | None = Field(
+        default=None,
+        alias="GOOGLE_APPLICATION_CREDENTIALS",
+    )
+
 
 settings = Settings()
