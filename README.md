@@ -88,8 +88,69 @@ flowchart TD
         P6 --> SaveDB["Firestore Write<br>(Background Task)"]
     end
     
-    SaveCache & SaveDB --> ReturnFresh["Return Fresh FraudReport & Render UI"]
 ```
+
+---
+
+## 🔄 End-to-End System Workflow
+
+This diagram outlines the complete sequence of events when a request is dispatched to the platform:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Security Analyst / Web UI
+    participant App as app.py (FastAPI Gateway)
+    participant Cache as Cache Layer (Redis/Memory)
+    participant Pipeline as Pipeline Analyzers (Phases 1-4)
+    participant Gemini as Gemini AI Service (Phase 5)
+    participant DB as Firestore DB Ledger (Phase 6)
+
+    User->>App: POST /api/analyze (raw URL string)
+    App->>Pipeline: Preprocess: Casing Normalization & Punycode conversion
+    Pipeline-->>App: Normalized URL & Deterministic Cache Key
+    App->>Cache: GET scan:{cache_key}
+    
+    alt Cache Hit
+        Cache-->>App: Cached FraudReport JSON Payload
+        App-->>User: HTTP 200 OK (Instant Cache Render)
+    else Cache Miss
+        App->>Pipeline: 1. DNS check & MX/A record validation (Phase 1)
+        App->>Pipeline: 2. Local lexical heuristics & typosquatting check (Phase 2)
+        App->>Pipeline: 3. Concurrent Threat Intel lookup (Phase 3)
+        App->>Pipeline: 4. Sandboxed Chromium load & DOM parsing (Phase 4)
+        Pipeline-->>App: Unified AnalysisContext (screenshots, text, signals)
+        
+        App->>Gemini: 5. Gemini AI content audit (Phase 5)
+        alt Gemini Primary Model Success (gemini-2.5-flash)
+            Gemini-->>App: ContentAnalysisResult JSON
+        else Gemini Quota Limit / API Failover
+            App->>Gemini: Failover request to backup (gemini-2.5-flash-lite)
+            Gemini-->>App: ContentAnalysisResult JSON
+        end
+        
+        App->>App: Compose final FraudReport Pydantic Model
+        App->>DB: Save Scan Ledger (Phase 6 Background Task)
+        App->>Cache: Save scan:{cache_key} (Set TTL)
+        App-->>User: HTTP 200 OK (Render detailed dashboards)
+    end
+```
+
+### 📋 Technical Execution Sequence
+
+| Step | System Component | Core Execution Process | Input / Output Formats | Failure Recovery / Isolation |
+| :--- | :--- | :--- | :--- | :--- |
+| **1** | **API Gateway** (`app.py`) | Receives raw request, normalizes query params, standardizes case formats, and generates the cache key. | **In**: `AnalyzeRequest` (string)<br>**Out**: Cache key string | Client-side validation returns standard HTTP 400 if syntax is malformed. |
+| **2** | **Cache Check** (`factory.py`) | Inspects local thread-safe memory storage or active Redis instance for namespaced key `scan:{key}`. | **In**: Cache key string<br>**Out**: `FraudReport` or `None` | **Fail-Open Strategy**: If Redis connection fails, prints warning and proceeds directly to query analysis pipeline. |
+| **3** | **DNS Validation** (`resolver.py`) | Checks domain record resolution (A, AAAA, MX) and caches results to prevent redundant network lookups. | **In**: Hostname<br>**Out**: `ValidationResult` | If domain fails to resolve to any active IP address, the scan is terminated instantly with HTTP 400. |
+| **4** | **Static Analyzer** (`static_url_analyzer.py`) | Measures entropy, checks combosquatting lists, and executes typosquatting Levenshtein check. | **In**: `ValidationResult`<br>**Out**: `StaticRiskAnalysis` | Rules-based engine with no outbound network dependencies. Failures are isolated locally. |
+| **5** | **Threat Intel Orchestrator** (`orchestrator.py`) | Dispatches 5 concurrent thread tasks to query VirusTotal, SafeBrowsing, AbuseIPDB, URLScan, and URLhaus. | **In**: Domain & IPs<br>**Out**: `ThreatIntelligenceResult` | Individual API failures or rate limits are isolated. Confidence score dynamically scales down based on failed lookups. |
+| **6** | **Browser Sandbox** (`browser_engine.py`) | Launches Playwright chromium browser, logs redirects, audits DOM elements (password/OTP inputs), and saves screenshots. | **In**: Target URL<br>**Out**: `DynamicAnalysisResult` | Playwright errors are caught, returning a `failed` status result so the main analysis is not blocked. |
+| **7** | **Gemini AI service** (`service.py`) | Submits page screenshot, clean text, and signals metadata. Auto-fails over to backup model if quota exceeded. | **In**: `AIAnalysisInput`<br>**Out**: `AIAnalysisResult` | Exceptions are caught, falling back to writing prompts to the UI copy-paste diagnostic card. |
+| **8** | **Score Suppression** (`calculator.py`) | Overrides final score to `0.0` if Gemini recommends `ALLOW` to prevent false positive alarms on official brand pages. | **In**: AISignals & Verdict<br>**Out**: `AIRisk` | Scoring is strictly deterministic. Suppresses all login-field signals for verified domains. |
+| **9** | **Persistence Task** (`firestore_repository.py`) | Serializes report Pydantic structure and writes to Cloud Firestore in the background to prevent user load blocking. | **In**: `FraudReport`<br>**Out**: Firestore Document ID | Database writing is handled as a background task. If GCP fails, logs error without disrupting UI display. |
+
+---
 
 ### Phase 1: Preprocessing & DNS Validation
 *   **Validation**: Asserts URL structure, extracts parameters, and intercepts private IPs or invalid formats before executing outbound queries.
