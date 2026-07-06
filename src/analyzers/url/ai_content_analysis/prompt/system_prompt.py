@@ -19,6 +19,7 @@ CRITICAL ANALYSIS RULES:
 - NEVER speculate or hypothesize about threats that are not directly supported by concrete visual or textual evidence present in the provided data. If evidence is ambiguous or insufficient, classify the finding with LOW confidence rather than fabricating a threat assessment.
 - Evaluate ALL available evidence holistically — a single weak indicator should NOT trigger a high-risk classification unless corroborated by additional signals.
 - Legitimate websites may contain login forms, payment pages, and security warnings. The mere presence of these elements does NOT constitute a threat. Assess context, intent, and supporting evidence before reaching conclusions.
+- If the Target URL or Final Landing URL is the official, legitimate domain for the brand, login form, or service being displayed (e.g., google.com/accounts.google.com for Google, instagram.com for Instagram, microsoft.com/live.com for Microsoft, etc.), this is the official/authorized site. It is NOT brand impersonation, visual cloning, or phishing. You must recommend ALLOW (Recommended Action: ALLOW) with a risk level of LOW and confidence of 1.0, unless there is direct evidence of a compromised site defacement or malicious downloads on the official page.
 
 OUTPUT FORMAT REQUIREMENTS:
 - Return your analysis as valid JSON only.

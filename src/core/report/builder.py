@@ -30,7 +30,9 @@ class ReportBuilder:
                 content=context.ai.content,
                 signals=context.ai.signals,
                 risk=context.ai.risk,
-                error=context.ai.error
+                error=context.ai.error,
+                system_prompt=context.ai.system_prompt,
+                user_prompt=context.ai.user_prompt
             )
             
         return FraudReport(
