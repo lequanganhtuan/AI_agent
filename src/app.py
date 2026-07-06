@@ -18,6 +18,7 @@ from src.core.models import StaticAnalysisResult, AnalysisContext
 from src.core.cache import get_cache
 from src.core.database import FirestoreRepository
 from src.core.report.builder import ReportBuilder
+from src.core.settings import settings
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
