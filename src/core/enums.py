@@ -4,7 +4,6 @@ class ValidationErrorCode(Enum):
     INVALID_URL_FORMAT = "INVALID_URL_FORMAT"
     INVALID_SCHEME = "INVALID_SCHEME"
     URL_TOO_LONG = "URL_TOO_LONG"
-    SSRF_ATTEMPT = "SSRF_ATTEMPT"
 
 
 class URLSignal(Enum):

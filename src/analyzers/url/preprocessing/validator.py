@@ -12,7 +12,6 @@ class URLValidator():
     
     # Configured dynamic set for suspicious TLDs
     SUSPICIOUS_TLDS = URLAnalyzerConfig.SUSPICIOUS_TLDS
-    BLOCKED_METADATA_IPS = URLAnalyzerConfig.BLOCKED_METADATA_IPS
 
     def validate(self, url: str) -> None:
         """
@@ -22,7 +21,6 @@ class URLValidator():
         self._validate_length(url)
         parsed = self._validate_format(url)
         self._validate_scheme(parsed)
-        self._validate_infrastructure_safety(parsed)
         
     def _validate_format(self, url: str):
         """Checks if the URL has a correct structural format."""
@@ -74,33 +72,4 @@ class URLValidator():
                 ValidationErrorCode.URL_TOO_LONG,
                 "URL exceeds maximum length"
             )
-        
-    def _validate_infrastructure_safety(self, parsed) -> None:
-        """Filters out dangerous hostnames and raw IPs to eliminate server-side security flaws (SSRF)."""
-        hostname = parsed.hostname or ""
-        
-        # TODO:
-        # Resolve hostname to IP and re-check SSRF ranges
-        
-        # Block strict string matches against Cloud Metadata APIs
-        if hostname in self.BLOCKED_METADATA_IPS:
-            raise URLValidationException(
-                ValidationErrorCode.SSRF_ATTEMPT,
-                "Access to cloud infrastructure metadata endpoints is restricted."
-            )
-
-        # Deep packet-level checking if the user passed a raw IP address
-        try:
-            ip_obj = ipaddress.ip_address(hostname)
-            
-            # ip_obj.is_private: Covers IPv4 internal scopes & IPv6 Unique Local Address
-            # ip_obj.is_loopback: Covers IPv4 localhost (127.0.0.1) & IPv6 Loopback (::1)
-            # ip_obj.is_link_local: Covers auto-configured scopes like IPv6 (fe80::/10)
-            if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_reserved or ip_obj.is_multicast or ip_obj.is_unspecified:
-                raise URLValidationException(
-                    ValidationErrorCode.SSRF_ATTEMPT,
-                    "Targeting private, local loopback, or link-local network interfaces is prohibited."
-                )
-        except ValueError:
-            # Safe to pass if hostname is a text domain label (e.g., 'google.com')
-            pass
+        

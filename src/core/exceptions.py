@@ -9,7 +9,4 @@ class URLValidationException(Exception):
         self.message = message
         super().__init__(message)
         
-        if code == ValidationErrorCode.SSRF_ATTEMPT:
-            logger.critical(f"[SECURITY_ALERT] SSRF Attempt Blocked | Code: {code.value} | Message: {message}")
-        else:
-            logger.warning(f"[URL_VALIDATION_FAILED] Code: {code.value} | Message: {message}")
+        logger.warning(f"[URL_VALIDATION_FAILED] Code: {code.value} | Message: {message}")
