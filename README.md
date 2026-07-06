@@ -92,16 +92,42 @@ flowchart TD
 ```
 
 ### Phase 1: Preprocessing & DNS Validation
-*   **Validation**: Asserts URL structure, extracts components, and intercepts private IPs or invalid formats before executing outbound queries.
-*   **Normalization**: Corrects casing, standardizes query parameters, and handles Punycode internationalized domains to establish a deterministic cache key.
+*   **Validation**: Asserts URL structure, extracts parameters, and intercepts private IPs or invalid formats before executing outbound queries.
+*   **Normalization**: Corrects casing, trims whitespace, standardizes query parameters, and handles Punycode internationalized domains to establish a deterministic cache key.
 *   **DNS Resolution**: Checks actual domain viability via a custom resolver featuring a thread-safe, TTL-sensitive caching system.
+
+#### ⚙️ Technical Workflow
+```mermaid
+flowchart LR
+    URL[Raw URL String] --> Val[URLValidator] --> Norm[URLNormalizer] --> Parse[TLDExtract] --> DNS[DNSResolver] --> Result[ValidationResult]
+```
+*   **Input**: Raw user URL string (e.g. `http://example.com/path?query=val`).
+*   **Output**: `ValidationResult` containing parsed components (scheme, domain, TLD), hostname viability status, and the computed deterministic `cache_key`.
+
+#### 📸 Visual Interface (Input & Validation Phase)
+![Phase 1 - Preprocessing](artifacts/phase1_preprocess.png)
+
+---
 
 ### Phase 2: Static Heuristics & Lexical Analysis
 Checks properties of the URL itself without making network calls to external sites:
 *   **Lexical Features**: Computes entropy, digit ratios, depth, token lengths, and special characters.
 *   **Brand Spoofing**: Compares the target domain against lists of high-traffic brands to identify phishing targets.
-*   **Typosquatting**: Applies Levenshtein distance metrics to catch lookalike domains (e.g., `g00gle.com`, `paypal-security-update.net`).
+*   **Typosquatting/Combosquatting**: Applies Levenshtein distance metrics to catch lookalike domains (e.g., `g00gle.com`, `paypal-security-update.net`).
 *   **TLD Check**: Matches top-level domains against a list of high-risk spam or malware registrars.
+
+#### ⚙️ Technical Workflow
+```mermaid
+flowchart LR
+    ValResult[ValidationResult] --> Lex[LexicalAnalyzer] & Brand[BrandAnalyzer] & Pattern[PatternAnalyzer] & TLD[TLDAnalyzer] & Typo[TyposquattingAnalyzer] --> Score[StaticRiskCalculator] --> StaticResult[StaticRiskAnalysis]
+```
+*   **Input**: `ValidationResult` model.
+*   **Output**: `StaticRiskAnalysis` containing a rules-based threat score (clamped to 100), active signals, and visual summaries.
+
+#### 📸 Visual Interface (Static Analysis Widgets)
+![Phase 2 - Static Analysis](artifacts/phase2_static.png)
+
+---
 
 ### Phase 3: Parallel Threat Intelligence
 Aggregates live reputation data from multiple providers concurrently:
@@ -112,6 +138,21 @@ Aggregates live reputation data from multiple providers concurrently:
 *   **URLScan**: Identifies behavioral and site-level hazards.
 *   **Error Tolerance**: Gracefully isolates provider failures or timeouts, adjusting the overall **Confidence Score** proportional to the succeeded lookups.
 
+#### ⚙️ Technical Workflow
+```mermaid
+flowchart TD
+    ValResult[ValidationResult] --> Orchestrator[ThreatIntelOrchestrator]
+    Orchestrator --> VT[VirusTotal] & GSB[Google Safe Browsing] & US[URLScan] & UH[URLHaus] & AB[AbuseIPDB]
+    VT & GSB & US & UH & AB --> Aggregator[Aggregator & Confidence Evaluator] --> ThreatResult[ThreatIntelligenceResult]
+```
+*   **Input**: `ValidationResult` containing host IPs.
+*   **Output**: `ThreatIntelligenceResult` wrapping results from all 5 providers, aggregate hit signals, and a computed confidence score.
+
+#### 📸 Visual Interface (Concurrent Threat Reputations)
+![Phase 3 - Threat Intelligence](artifacts/phase3_threat.png)
+
+---
+
 ### Phase 4: Sandboxed Dynamic Browser Crawling
 A live headless crawler visits the site inside a secure Playwright environment:
 *   **Redirect Chains**: Captures all HTTP and meta-refresh redirects, tracking cross-domain jumps and loops.
@@ -119,16 +160,57 @@ A live headless crawler visits the site inside a secure Playwright environment:
 *   **Network Sniffing**: Inspects API endpoints, WebSocket activities, and CDN connections during loading.
 *   **Visual Evidence**: Captures full-page screenshots for security operators to audit.
 
+#### ⚙️ Technical Workflow
+```mermaid
+flowchart LR
+    ValResult[ValidationResult] --> Browser[BrowserEngine / Playwright] --> Page[PageLoader] --> Sniff[NetworkAnalyzer & DOMAnalyzer & RedirectAnalyzer] --> Calc[DynamicRiskCalculator] --> DynResult[DynamicAnalysisResult]
+```
+*   **Input**: `ValidationResult` (URL targeted).
+*   **Output**: `DynamicAnalysisResult` containing full-page screenshot path, redirect timelines, DOM input form classifications, network packet counts, and a computed dynamic score.
+
+#### 📸 Visual Interface (Automated Playwright Crawl)
+![Phase 4 - Dynamic Analysis](artifacts/phase4_dynamic.png)
+
+---
+
 ### Phase 5: AI Content Analysis & Reasoning
 An LLM content analyzer (Google Gemini) processes the combined data to produce a final security verdict:
 *   **Primary/Backup Failover**: Integrates primary model `gemini-2.5-flash` with automatic failover to `gemini-2.5-flash-lite` if the primary model fails.
 *   **Composite Risk Scoring**: Computes a deterministic composite risk score combining signal weights, severity multipliers, and the model's confidence. Enforces safety-net score floors based on the recommended verdict (e.g., minimum score of 70 for a `BLOCK` recommended action) to guarantee threat scores match policy decisions.
 *   **Official Brand Suppression**: Automatically suppresses threat scores to `0.0` when the recommended action is `ALLOW` (e.g., official domains like `google.com`, `instagram.com`).
 
+#### ⚙️ Technical Workflow
+```mermaid
+flowchart TD
+    Ctx[AnalysisContext] --> Builder[PromptBuilder] --> SystemUserPrompts[System + User Prompt payload]
+    SystemUserPrompts --> GeminiClient[Gemini Client / Failover Engine] --> RawText[JSON Output]
+    RawText --> Parser[AIResponseParser] --> Signals[AISignalGenerator] --> Risk[AIRiskCalculator] --> AIResult[AIAnalysisResult]
+```
+*   **Input**: Entire accumulated pipeline `AnalysisContext` and browser page HTML string.
+*   **Output**: `AIAnalysisResult` containing Gemini website purpose classification, brand confidence, reasoning steps, AI signals, and final composite threat score.
+
+#### 📸 Visual Interface (Google Gemini Safety Verdicts & Prompt Diagnostics)
+![Phase 5 - AI Content Analysis](artifacts/phase5_ai.png)
+
+---
+
 ### Phase 6: Persistence & Cache Management
-*   **Dual-Layer Cache**: Searches for cache keys under a prefix namespace (`scan:{cache_key}`) with an async Redis manager or falls back to an asynchronous thread-safe local `InMemoryCache` using monotonic clocks to prevent clock-drift issues.
+*   **Dual-Layer Cache**: Searches for cache keys under a prefix namespace (`scan:{cache_key}`) with an async Redis manager or falls back to an local `InMemoryCache` using monotonic clocks to prevent clock-drift issues.
 *   **Firestore Database History**: Persists complete, structured `FraudReport` documents in Google Cloud Firestore as a background task.
 *   **Scan History Sidebar**: Features a sliding side drawer to fetch, search, and filter past scans locally, reloading historical records instantly.
+
+#### ⚙️ Technical Workflow
+```mermaid
+flowchart LR
+    Report[FraudReport] --> CacheCheck{Redis/Memory Cache} --> SaveCache[Save cached key]
+    Report --> Firestore[FirestoreRepository] --> DB[Google Cloud Firestore]
+    UI[Scan History UI Drawer] --> FetchHistory[GET /api/history] --> ReadDB[Query Firestore & Map Summary]
+```
+*   **Input**: Completed `FraudReport` instance.
+*   **Output**: Saved cache payload, Firestore document ID, and searchable sidebar list cards.
+
+#### 📸 Visual Interface (Scan Ledger History Sidebar)
+![Phase 6 - Persistence & Cache History](artifacts/phase6_persistence.png)
 
 ---
 
