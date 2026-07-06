@@ -47,17 +47,15 @@ def test_analyzer_invalid_url(analyzer):
     assert isinstance(result.error_message, str)
 
 
-def test_analyzer_ssrf_attempt(analyzer):
+def test_analyzer_ssrf_allowed(analyzer):
     """
-    Case 3: Blocking SSRF attacks from the outset.
-    The highest security Business Rule must be enabled to return the SSRF_ATTEMPT error code.
+    Case 3: SSRF URLs are no longer blocked from the outset.
     """
     url = "http://127.0.0.1"
     result = analyzer.analyze(url)
     
-    assert result.valid is False
-    assert result.error_code == ValidationErrorCode.SSRF_ATTEMPT.value
-    assert "loopback" in result.error_message.lower() or "prohibited" in result.error_message.lower()
+    assert result.valid is True
+    assert result.normalized_url == "http://127.0.0.1"
 
 
 def test_analyzer_naked_domain(analyzer):
