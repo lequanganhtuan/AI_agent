@@ -59,7 +59,8 @@ class Settings(BaseSettings):
     )
 
     # IPQualityScore (https://www.ipqualityscore.com/user/api-keys)
-    ipqs_api_key: str = Field(
+    ipqs_api_key: str | None = Field(
+        default=None,
         alias="IPQS_API_KEY",
     )
 
