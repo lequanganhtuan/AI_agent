@@ -128,7 +128,7 @@ async def test_service_pipeline_execution(mock_context, content_analysis_result,
     client.generate.assert_called_once()
     parser.parse.assert_called_once_with('{"raw": "json"}')
     sig_gen.generate.assert_called_once_with(content_analysis_result)
-    risk_eng.calculate_risk.assert_called_once_with(signals)
+    risk_eng.calculate_risk.assert_called_once_with(signals, content_analysis_result.recommended_action)
 
 
 # ─── Orchestrator Tests ───────────────────────────────────────────────────────

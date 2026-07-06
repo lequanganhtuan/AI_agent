@@ -169,7 +169,7 @@ An LLM content analyzer (Google Gemini) and interactive dashboard process the co
 *   **Resilient Model Failover (Primary/Backup)**: Integrates primary model target `gemini-2.5-flash` with an automatic failover to `gemini-2.5-flash-lite` if the primary model fails due to rate limits, connection errors, or quota exhaustion (`RESOURCE_EXHAUSTED` 429).
 *   **Robust Exception Isolation**: Translates raw API exceptions into fine-grained client exceptions (like `LLMQuotaExhaustedError`). If both primary and backup models fail, the orchestrator gracefully isolates the failure, logs the error, and falls back to rendering the system and user prompts anyway.
 *   **Dynamic Threat Signals**: Maps AI findings into structured security signals (e.g. `BRAND_IMPERSONATION`, `DATA_HARVESTING`, `FAKE_LOGIN_PAGE`).
-*   **Composite Risk Scoring**: Computes a deterministic composite risk score combining signal weights, severity multipliers, and the model's brand confidence.
+*   **Composite Risk Scoring**: Computes a deterministic composite risk score combining signal weights, severity multipliers, and the model's confidence. Enforces safety-net score floors based on the recommended verdict (e.g., minimum score of 70 for a `BLOCK` recommended action) to guarantee threat scores match policy decisions.
 *   **Interactive Web UI Dashboard**: 
     *   **Phase-Specific Tabs**: Renders detailed panels for Static, Threat Intel, Dynamic, and AI Analysis.
     *   **Visual Elements**: Animated circular gauges for risk scores, redirection path timelines, and screenshot previews.

@@ -436,6 +436,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const rawConf = aiResult.content.confidence;
             const cleanConf = (typeof rawConf === 'number') ? `${Math.round(rawConf * 100)}%` : '-';
             document.getElementById('ai-brand-confidence').textContent = cleanConf;
+            document.getElementById('ai-confidence-value').textContent = cleanConf;
 
             // Reasoning list
             const reasoningDetails = document.getElementById('ai-reasoning-details');
@@ -515,6 +516,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('ai-detected-brand').textContent = '-';
             document.getElementById('ai-fraud-category').textContent = '-';
             document.getElementById('ai-brand-confidence').textContent = '-';
+            document.getElementById('ai-confidence-value').textContent = '-';
             document.getElementById('ai-findings-details').innerHTML = '<div class="bullet-item">No indicators generated.</div>';
             document.getElementById('ai-signals-badge-container').innerHTML = '<span class="no-signals">No indicators reported.</span>';
             
