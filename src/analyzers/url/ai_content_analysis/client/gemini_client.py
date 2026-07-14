@@ -28,6 +28,7 @@ class GeminiClient(BaseLLMClient):
 
     def __init__(self, api_key: Optional[str] = None) -> None:
         self.api_key = api_key or config.gemini_api_key
+        logger.info(f"[GeminiClient] Initializing with API Key: {'*' * 30}{self.api_key[-4:]}")
         # Initialize client. The new SDK requires passing api_key directly
         # or setting GEMINI_API_KEY env var.
         self.client = genai.Client(api_key=self.api_key)

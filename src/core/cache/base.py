@@ -10,5 +10,9 @@ class BaseCache:
     async def set(self, key: str, report: FraudReport, ttl: int = 86400) -> None:
         raise NotImplementedError
 
+    async def get_all(self) -> list[FraudReport]:
+        return []
+
     async def close(self) -> None:
         pass
+

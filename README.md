@@ -132,9 +132,11 @@ sequenceDiagram
         App->>App: Compose final FraudReport Pydantic Model
         App->>DB: Save Scan Ledger (Phase 6 Background Task)
         App->>Cache: Save scan:{cache_key} (Set TTL)
-        App-->>User: HTTP 200 OK (Render detailed dashboards)
     end
 ```
+
+> [!TIP]
+> For a highly detailed architectural flowchart illustrating internal file names, class definitions, parallel execution branches, error failovers, and Firestore persistence, refer to the [DETAILED_WORKFLOW.md](DETAILED_WORKFLOW.md) guide.
 
 ### 📋 Technical Execution Sequence
 
