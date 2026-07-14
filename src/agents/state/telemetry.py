@@ -16,3 +16,6 @@ class TelemetryState(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     node_metrics: dict = Field(default_factory=dict)
     node_timings: dict[str, float] = Field(default_factory=dict)
+    checkpoint_saved: bool = False
+    checkpoint_id: str | None = None
+    checkpoint_time: datetime | None = None

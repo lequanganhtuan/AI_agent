@@ -63,4 +63,6 @@ def validate_node(state: URLAnalysisState) -> URLAnalysisState:
         )
         state.telemetry.errors.append(err)
         
+    from src.agents.checkpoint import checkpoint_manager
+    checkpoint_manager.save(state)
     return state

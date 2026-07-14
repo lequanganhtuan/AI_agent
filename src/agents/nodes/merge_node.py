@@ -9,4 +9,6 @@ def merge_node(state: URLAnalysisState) -> URLAnalysisState:
     state.workflow.current_node = NodeName.MERGE
     state.workflow.visited_nodes.append(NodeName.MERGE)
     state.workflow.completed_nodes.append(NodeName.MERGE)
+    from src.agents.checkpoint import checkpoint_manager
+    checkpoint_manager.save(state)
     return state

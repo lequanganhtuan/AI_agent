@@ -103,6 +103,31 @@ def test_router_scenarios():
     assert d4.action == ErrorAction.CONTINUE
     assert d4.error_type == "NetworkError"
 
+    # SCENARIO 6: Checkpoint Persist & Load Verification
+    print("\n--- SCENARIO 6: Checkpoint Persist & Load Verification ---")
+    from src.agents.checkpoint import checkpoint_manager
+    req_id = final_state1.execution.request_id
+    saved_state = checkpoint_manager.load(req_id)
+    print(f"Loaded checkpoint for request: {saved_state.execution.request_id}")
+    print(f"Checkpoint node state: {saved_state.workflow.current_node}")
+    print(f"Checkpoint telemetry checkpoint_saved: {saved_state.telemetry.checkpoint_saved}")
+    print(f"Checkpoint telemetry checkpoint_id: {saved_state.telemetry.checkpoint_id}")
+    print(f"Checkpoint telemetry checkpoint_time: {saved_state.telemetry.checkpoint_time}")
+    
+    assert saved_state.execution.request_id == req_id
+    assert saved_state.workflow.current_node == NodeName.STORE
+    assert saved_state.telemetry.checkpoint_saved is True
+    assert saved_state.telemetry.checkpoint_id == req_id
+    assert saved_state.telemetry.checkpoint_time is not None
+
+    # Test deletion
+    checkpoint_manager.delete(req_id)
+    try:
+        checkpoint_manager.load(req_id)
+        raise AssertionError("Checkpoint was not deleted successfully!")
+    except KeyError:
+        print("Checkpoint successfully deleted!")
+
     print("\n=== ALL SCENARIOS VERIFIED SUCCESSFULLY! ===")
 
 if __name__ == "__main__":

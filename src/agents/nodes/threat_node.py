@@ -51,4 +51,6 @@ def threat_node(state: URLAnalysisState) -> URLAnalysisState:
         state.telemetry.errors.append(err)
         state.telemetry.warnings.append(f"Threat node failed and continued: {err_msg}")
         
+    from src.agents.checkpoint import checkpoint_manager
+    checkpoint_manager.save(state)
     return state

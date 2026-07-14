@@ -49,4 +49,6 @@ def dynamic_node(state: URLAnalysisState) -> URLAnalysisState:
         state.telemetry.errors.append(err)
         state.telemetry.warnings.append(f"Dynamic node error handled with {decision.action}: {err_msg}")
         
+    from src.agents.checkpoint import checkpoint_manager
+    checkpoint_manager.save(state)
     return state
