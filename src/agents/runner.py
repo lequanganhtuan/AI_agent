@@ -69,6 +69,7 @@ class AgentRunner:
                 return self._finalize_state(state, url, start_time)
 
             # 2. Run Static, Threat, and early screenshot tasks concurrently in ThreadPoolExecutor
+            loop = asyncio.get_running_loop()
             state_static, state_threat, screenshot_path = await asyncio.gather(
                 loop.run_in_executor(None, static_node, copy.deepcopy(state)),
                 loop.run_in_executor(None, threat_node, copy.deepcopy(state)),
