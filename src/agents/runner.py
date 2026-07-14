@@ -85,13 +85,32 @@ class AgentRunner:
             # Sync merge state
             state = await asyncio.to_thread(merge_node, state)
 
-            # Check Tier 2 Decisive Safe Exit: If both static & threat risk scores are 0
+            # Check Tier 2 Decisive Safe Exit: If both static & threat risk scores are 0 and the domain is whitelisted
             threat_risk = state.analysis.threat_intelligence.risk if state.analysis.threat_intelligence else None
             static_risk = state.analysis.static.risk if state.analysis.static else None
             is_threat_safe = threat_risk and threat_risk.score == 0
             is_static_safe = static_risk and static_risk.score == 0
 
-            if is_threat_safe and is_static_safe:
+            from urllib.parse import urlparse
+            try:
+                url_str = url if url.startswith(("http://", "https://")) else f"https://{url}"
+                domain_lower = urlparse(url_str).netloc.lower().replace("www.", "")
+                parts = domain_lower.split(".")
+                root_domain = ".".join(parts[-2:]) if len(parts) >= 2 else domain_lower
+            except Exception:
+                root_domain = ""
+                domain_lower = ""
+
+            legitimate_domains = {
+                "google.com", "gmail.com", "youtube.com", "facebook.com", "apple.com",
+                "microsoft.com", "live.com", "outlook.com", "twitter.com", "x.com",
+                "linkedin.com", "netflix.com", "wikipedia.org", "amazon.com",
+                "github.com", "cloudflare.com", "abuse.ch", "virustotal.com",
+                "google.com.vn", "googlevideo.com", "example.com"
+            }
+            is_whitelisted = root_domain in legitimate_domains or domain_lower in legitimate_domains
+
+            if is_threat_safe and is_static_safe and is_whitelisted:
                 logger.info("[Orchestrator] Tier 2 Decisive Safe Exit triggered. Bypassing Dynamic & AI analysis.")
                 state = await asyncio.to_thread(report_node, state)
                 state = await asyncio.to_thread(store_node, state)
