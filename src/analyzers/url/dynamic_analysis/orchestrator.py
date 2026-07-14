@@ -137,6 +137,19 @@ class DynamicAnalysisOrchestrator:
                     risk=risk_res,
                     summary=summary
                 )
+                
+                # Save dynamic HTML to file system using validation cache_key
+                cache_key = getattr(context.validation, "cache_key", None)
+                if cache_key and snapshot and getattr(snapshot, "html", None):
+                    import os
+                    os.makedirs("artifacts/scans", exist_ok=True)
+                    try:
+                        safe_key = cache_key.replace(":", "_")
+                        with open(f"artifacts/scans/{safe_key}.html", "w", encoding="utf-8") as f:
+                            f.write(snapshot.html)
+                    except Exception as e:
+                        logger.error(f"Failed to save dynamic HTML to cache file: {str(e)}")
+
                 context.dynamic = result
                 return result
 
