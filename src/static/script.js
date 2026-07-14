@@ -127,6 +127,19 @@ document.addEventListener('DOMContentLoaded', () => {
         summaryConfidence.textContent = confidence;
         summaryInsightText.textContent = insight;
 
+        // Update screenshot on summary card
+        const summaryScreenshotContainer = document.getElementById('summary-screenshot-container');
+        const summaryScreenshotImg = document.getElementById('summary-screenshot-img');
+        if (summaryScreenshotContainer && summaryScreenshotImg) {
+            const screenshotPath = (data.dynamic && data.dynamic.screenshot_path) ? data.dynamic.screenshot_path : null;
+            if (screenshotPath) {
+                summaryScreenshotImg.src = '/' + screenshotPath;
+                summaryScreenshotContainer.classList.remove('hidden');
+            } else {
+                summaryScreenshotContainer.classList.add('hidden');
+            }
+        }
+
         // Save last analyzed scan ID to local storage
         localStorage.setItem('recent_scan_id', data.id);
 

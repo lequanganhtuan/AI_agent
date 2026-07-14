@@ -68,11 +68,11 @@ class AgentRunner:
                 state = await asyncio.to_thread(store_node, state)
                 return self._finalize_state(state, url, start_time)
 
-            # 2. Tier 2 check: Run Static and Threat nodes in parallel
-            loop = asyncio.get_running_loop()
-            state_static, state_threat = await asyncio.gather(
+            # 2. Run Static, Threat, and early screenshot tasks concurrently in ThreadPoolExecutor
+            state_static, state_threat, screenshot_path = await asyncio.gather(
                 loop.run_in_executor(None, static_node, copy.deepcopy(state)),
-                loop.run_in_executor(None, threat_node, copy.deepcopy(state))
+                loop.run_in_executor(None, threat_node, copy.deepcopy(state)),
+                loop.run_in_executor(None, run_early_screenshot_sync, url, state.execution.request_id)
             )
 
             # Merge the parallel state outputs using Pydantic reducers
@@ -81,6 +81,14 @@ class AgentRunner:
             state.control = merge_control(state_static.control, state_threat.control)
             state.execution = merge_execution(state_static.execution, state_threat.execution)
             state.telemetry = merge_telemetry(state_static.telemetry, state_threat.telemetry)
+
+            # Inject early screenshot path if captured successfully
+            if screenshot_path:
+                from src.core.models import DynamicAnalysisResult
+                state.analysis.dynamic = DynamicAnalysisResult(
+                    status="completed",
+                    screenshot_path=screenshot_path
+                )
 
             # Sync merge state
             state = await asyncio.to_thread(merge_node, state)
@@ -196,4 +204,43 @@ Status:          {state.workflow.status.value}
 """
         logger.info(summary)
         return summary
+
+
+async def capture_early_screenshot(url: str, request_id: str) -> str | None:
+    """Helper to capture an early visual screenshot of the target URL concurrently during Tier 2."""
+    try:
+        from src.analyzers.url.dynamic_analysis.browser_engine import BrowserEngine
+        from src.analyzers.url.dynamic_analysis.loader.page_loader import PageLoader
+        from src.analyzers.url.dynamic_analysis.screenshot.screenshot_collector import ScreenshotCollector
+        from src.core.models import ValidationResult
+        
+        browser_engine = BrowserEngine()
+        page_loader = PageLoader()
+        screenshot_collector = ScreenshotCollector()
+        
+        # Build lightweight validation structure
+        validation = ValidationResult(valid=True, normalized_url=url)
+        
+        async with browser_engine.session() as session:
+            # Load page
+            await page_loader.load(session, validation)
+            # Capture screenshot
+            res = await screenshot_collector.capture(session)
+            logger.info(f"[EarlyScreenshot] Captured early screenshot for request {request_id} at {res.screenshot_path}")
+            return res.screenshot_path
+    except Exception as e:
+        logger.warning(f"[EarlyScreenshot] Bypassing screenshot capture. Early capture failed: {str(e)}")
+        return None
+
+
+def run_early_screenshot_sync(url: str, request_id: str) -> str | None:
+    """Synchronous wrapper to run early screenshot capture inside a background thread loop."""
+    import sys
+    if sys.platform == 'win32':
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+    try:
+        return asyncio.run(capture_early_screenshot(url, request_id))
+    except Exception as e:
+        logger.warning(f"[EarlyScreenshot] Thread loop failed to capture screenshot: {str(e)}")
+        return None
 
