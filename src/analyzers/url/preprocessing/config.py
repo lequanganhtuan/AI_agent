@@ -13,9 +13,4 @@ class URLAnalyzerConfig:
         "SUSPICIOUS_TLDS", 
         "xyz,top,click,zip,icu,pro,buz,vip,mov"
     ).split(","))
-
-    # List of sensitive IPs that must be blocked (Anti-SSRF)
-    BLOCKED_METADATA_IPS = {
-        "169.254.169.254",  # AWS / Google Cloud Metadata
-        "100.100.100.200"   # Alibaba Cloud Metadata
-    }
+

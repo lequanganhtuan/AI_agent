@@ -60,6 +60,15 @@ async def read_root():
             return f.read()
     return "<h1>Static directory not found!</h1>"
 
+@app.get("/details", response_class=HTMLResponse)
+async def read_details():
+    details_path = os.path.join(static_dir, "details.html")
+    if os.path.exists(details_path):
+        with open(details_path, "r", encoding="utf-8") as f:
+            return f.read()
+    return "<h1>Details template not found!</h1>"
+
+
 @app.post("/api/analyze")
 async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
     try:
@@ -312,7 +321,15 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
                 ),
                 ai=ai_res
             )
-            return ReportBuilder.build(context)
+            report = ReportBuilder.build(context)
+            
+            # Persist mock report to cache (by ID and Cache Key) and to Database in background
+            await cache.set(report.id, report, ttl=settings.cache_ttl)
+            if val_res.cache_key:
+                await cache.set(val_res.cache_key, report, ttl=settings.cache_ttl)
+            
+            background_tasks.add_task(persist_report_data, report)
+            return report
 
         url_analyzer = URLAnalyzer()
         static_analyzer = StaticURLAnalyzer()
@@ -373,6 +390,8 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
         # Caching set
         if cache_key:
             await cache.set(cache_key, report, ttl=settings.cache_ttl)
+        # Also cache by report ID (UUID) for fast history/details lookup fallback
+        await cache.set(report.id, report, ttl=settings.cache_ttl)
             
         # Persist to database in background
         background_tasks.add_task(persist_report_data, report)
@@ -392,23 +411,71 @@ async def get_scan_history(
     risk: str | None = None
 ):
     try:
-        return await db_repo.get_recent_reports(
-            limit=limit,
-            search=search,
-            verdict=verdict,
-            risk=risk
-        )
+        # Check DB first
+        try:
+            return await db_repo.get_recent_reports(
+                limit=limit,
+                search=search,
+                verdict=verdict,
+                risk=risk
+            )
+        except Exception as db_err:
+            logger.warning(f"Database query failed, falling back to cache records: {str(db_err)}")
+            
+        # Fallback to cache entries
+        cached_reports = await cache.get_all()
+        summaries = []
+        for report in cached_reports:
+            # Apply search filter
+            if search and search.lower() not in report.url.lower():
+                continue
+            
+            # Apply verdict filter
+            rec_action = report.ai.content.recommended_action if report.ai and report.ai.content else "ALLOW"
+            if verdict and verdict.upper() != "ALL" and rec_action != verdict.upper():
+                continue
+            
+            # Apply risk filter
+            level = report.ai.risk.level if report.ai and report.ai.risk else "LOW"
+            if risk and level != risk.upper():
+                continue
+                
+            # Build history entry
+            summaries.append({
+                "id": report.id,
+                "url": report.url,
+                "score": report.ai.risk.score if report.ai and report.ai.risk else 0.0,
+                "level": level,
+                "verdict": rec_action,
+                "timestamp": report.scanned_at.isoformat()
+            })
+            
+        # Sort by timestamp descending
+        summaries.sort(key=lambda x: x["timestamp"], reverse=True)
+        return summaries[:limit]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/history/{scan_id}")
 async def get_historical_scan(scan_id: str):
     try:
-        report = await db_repo.get_report_by_id(scan_id)
-        if not report:
-            raise HTTPException(status_code=404, detail="Historical report not found.")
-        return report
+        # Check cache first
+        cached_report = await cache.get(scan_id)
+        if cached_report:
+            logger.info(f"Returning cached FraudReport for history retrieval: {scan_id}")
+            return cached_report
+
+        # Check DB next
+        try:
+            report = await db_repo.get_report_by_id(scan_id)
+            if report:
+                return report
+        except Exception as db_err:
+            logger.warning(f"Database lookup failed for history retrieval: {str(db_err)}")
+
+        raise HTTPException(status_code=404, detail="Historical report not found.")
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+

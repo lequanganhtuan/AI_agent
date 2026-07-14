@@ -299,4 +299,39 @@ class AnalysisContext(BaseModel):
         populate_by_name=True
     )
 
+
+def create_default_static_analysis(url: str = "") -> StaticAnalysisResult:
+    return StaticAnalysisResult(
+        lexical=LexicalFeatures(
+            url_length=len(url),
+            root_domain_length=0,
+            full_domain_length=0,
+            subdomain_count=0,
+            url_special_char_count=0,
+            digit_ratio_domain=0.0,
+            domain_entropy=0.0,
+            hyphen_count=0,
+            url_depth=0,
+            query_parameter_count=0,
+            max_path_segment_length=0,
+            longest_token_length=0,
+            consecutive_digit_count=0
+        ),
+        brand=BrandAnalysis(),
+        pattern=PatternAnalysis(),
+        tld=TLDAnalysis(),
+        typosquatting=TyposquattingAnalysis(),
+        risk=StaticRiskAnalysis()
+    )
+
+
+def create_default_threat_intelligence() -> ThreatIntelligenceResult:
+    return ThreatIntelligenceResult(
+        virustotal=VirusTotalAnalysis(),
+        google_safe_browsing=GoogleSafeBrowsingAnalysis(),
+        urlscan=URLScanAnalysis(),
+        ip_reputation=AbuseIPDBAnalysis(),
+        risk=ThreatIntelligenceRisk()
+    )
+
     

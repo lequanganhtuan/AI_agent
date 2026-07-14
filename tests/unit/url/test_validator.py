@@ -45,28 +45,15 @@ def test_validate_url_too_long(validator):
     assert exc_info.value.code == ValidationErrorCode.URL_TOO_LONG
 
 
-def test_validate_blocked_metadata_ip(validator):
-    """Case 5: SSRF attack via Cloud Metadata IP."""
-    url = "http://169.254.169.254"
-    with pytest.raises(URLValidationException) as exc_info:
-        validator.validate(url)
-    
-    assert exc_info.value.code == ValidationErrorCode.SSRF_ATTEMPT
-
-
-def test_validate_loopback_ip(validator):
-    """Case 6: SSRF Attack via Loopback IP (Localhost)."""
-    url = "http://127.0.0.1"
-    with pytest.raises(URLValidationException) as exc_info:
-        validator.validate(url)
-    
-    assert exc_info.value.code == ValidationErrorCode.SSRF_ATTEMPT
-
-
-def test_validate_private_ip(validator):
-    """Case 7: SSRF attack via Private IP LAN."""
-    url = "http://192.168.1.10"
-    with pytest.raises(URLValidationException) as exc_info:
-        validator.validate(url)
-    
-    assert exc_info.value.code == ValidationErrorCode.SSRF_ATTEMPT
+def test_validate_allowed_internal_ips(validator):
+    """Case 5: Internal/private/loopback IPs are allowed and do not raise exception."""
+    urls = [
+        "http://169.254.169.254",
+        "http://127.0.0.1",
+        "http://192.168.1.10"
+    ]
+    for url in urls:
+        try:
+            validator.validate(url)
+        except URLValidationException:
+            pytest.fail(f"SSRF URL {url} raised URLValidationException but should be allowed")

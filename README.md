@@ -136,6 +136,8 @@ sequenceDiagram
     end
 ```
 
+> [!TIP]
+> For a highly detailed architectural flowchart illustrating internal file names, class definitions, parallel execution branches, error failovers, and Firestore persistence, refer to the [DETAILED_WORKFLOW.md](DETAILED_WORKFLOW.md) guide.
 ### 📋 Technical Execution Sequence
 
 | Step | System Component | Core Execution Process | Input / Output Formats | Failure Recovery / Isolation |
