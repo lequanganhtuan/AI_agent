@@ -26,10 +26,13 @@ def test_router_scenarios():
     print(f"Visited Nodes: {final_state1.workflow.visited_nodes}")
     print(f"Status: {final_state1.workflow.status}")
     assert final_state1.workflow.status == ExecutionStatus.SUCCESS
-    assert final_state1.workflow.visited_nodes == [
-        NodeName.VALIDATE, NodeName.STATIC, NodeName.THREAT,
-        NodeName.DYNAMIC, NodeName.AI, NodeName.REPORT, NodeName.STORE
-    ]
+    
+    # Assert parallel execution path
+    visited1 = final_state1.workflow.visited_nodes
+    assert visited1[0] == NodeName.VALIDATE
+    assert set(visited1[1:3]) == {NodeName.STATIC, NodeName.THREAT}
+    assert visited1[3] == NodeName.MERGE
+    assert visited1[4:] == [NodeName.DYNAMIC, NodeName.AI, NodeName.REPORT, NodeName.STORE]
 
     # SCENARIO 2: Early Exit Flow (Invalid URL)
     print("\n--- SCENARIO 2: Early Exit Flow (Invalid URL) ---")
@@ -50,7 +53,7 @@ def test_router_scenarios():
     print(f"Visited Nodes: {final_state3.workflow.visited_nodes}")
     print(f"Status: {final_state3.workflow.status}")
     assert final_state3.workflow.status == ExecutionStatus.SUCCESS
-    # Should bypass static, threat, dynamic, AI nodes
+    # Should bypass static, threat, dynamic, AI, merge nodes
     assert final_state3.workflow.visited_nodes == [
         NodeName.VALIDATE, NodeName.REPORT, NodeName.STORE
     ]
@@ -64,11 +67,13 @@ def test_router_scenarios():
     print(f"should_skip_dynamic value resolved by threat_node: {final_state4.control.should_skip_dynamic}")
     print(f"Status: {final_state4.workflow.status}")
     assert final_state4.workflow.status == ExecutionStatus.SUCCESS
-    # Should bypass dynamic node
-    assert final_state4.workflow.visited_nodes == [
-        NodeName.VALIDATE, NodeName.STATIC, NodeName.THREAT,
-        NodeName.AI, NodeName.REPORT, NodeName.STORE
-    ]
+    
+    # Assert parallel execution path with dynamic bypassed
+    visited4 = final_state4.workflow.visited_nodes
+    assert visited4[0] == NodeName.VALIDATE
+    assert set(visited4[1:3]) == {NodeName.STATIC, NodeName.THREAT}
+    assert visited4[3] == NodeName.MERGE
+    assert visited4[4:] == [NodeName.AI, NodeName.REPORT, NodeName.STORE]
 
     print("\n=== ALL SCENARIOS VERIFIED SUCCESSFULLY! ===")
 

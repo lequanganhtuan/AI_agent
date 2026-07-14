@@ -4,6 +4,7 @@ from src.agents.nodes import (
     validate_node,
     static_node,
     threat_node,
+    merge_node,
     dynamic_node,
     ai_node,
     report_node,
@@ -11,27 +12,33 @@ from src.agents.nodes import (
 )
 from .routes import (
     route_after_validate,
-    route_after_threat,
+    route_after_merge,
     route_after_dynamic,
     route_after_ai
 )
 
 def create_graph_builder() -> StateGraph:
-    """Builds the StateGraph using conditional routing rules."""
+    """Builds the StateGraph using conditional routing rules and parallel fan-out/fan-in."""
     builder = StateGraph(URLAnalysisState)
     
     # 1. Register all nodes
     builder.add_node("validate", validate_node)
     builder.add_node("static", static_node)
     builder.add_node("threat", threat_node)
+    builder.add_node("merge", merge_node)
     builder.add_node("dynamic", dynamic_node)
     builder.add_node("ai", ai_node)
     builder.add_node("report", report_node)
     builder.add_node("store", store_node)
     
-    # 2. Add linear entry and simple nodes transitions
+    # 2. Add linear entry and simple node transitions
     builder.add_edge(START, "validate")
-    builder.add_edge("static", "threat")
+    
+    # Fan-in edges: Static and Threat branches merge into synchronization node
+    builder.add_edge("static", "merge")
+    builder.add_edge("threat", "merge")
+    
+    # Report and persistence linear flow
     builder.add_edge("report", "store")
     builder.add_edge("store", END)
     
@@ -41,14 +48,15 @@ def create_graph_builder() -> StateGraph:
         route_after_validate,
         {
             "static": "static",
+            "threat": "threat",
             "report": "report",
             "end": END
         }
     )
     
     builder.add_conditional_edges(
-        "threat",
-        route_after_threat,
+        "merge",
+        route_after_merge,
         {
             "dynamic": "dynamic",
             "ai": "ai",

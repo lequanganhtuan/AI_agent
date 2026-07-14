@@ -12,6 +12,7 @@ class NodeName(str, Enum):
     VALIDATE = "VALIDATE"
     STATIC = "STATIC"
     THREAT = "THREAT"
+    MERGE = "MERGE"
     DYNAMIC = "DYNAMIC"
     AI = "AI"
     REPORT = "REPORT"
