@@ -55,9 +55,20 @@
                         <span>Analysis Verdict:</span>
                         <span id="summary-verdict" class="status-pill" style="font-size: 1.3rem; padding: 6px 18px;">ALLOW</span>
                     </div>
-                    <div class="click-details-hint" style="color: var(--text-muted); font-size: 0.95rem; margin-top: 10px; opacity: 0.85;">
-                        Click here to view detailed score, metrics, visual screenshot, and AI explanation &rarr;
+                    
+                    <div class="summary-insight-box" style="margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 8px; text-align: left; max-width: 800px; margin-left: auto; margin-right: auto; border: 1px solid var(--border-color);">
+                        <h4 style="margin: 0 0 8px 0; font-size: 1rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">AI Safety Summary</h4>
+                        <p id="summary-insight-text" style="margin: 0; font-size: 1rem; line-height: 1.5; color: var(--text-color);">-</p>
                     </div>
+
+                    <div id="summary-screenshot-container" class="hidden" style="margin-top: 20px; border-radius: 8px; overflow: hidden; max-width: 600px; margin-left: auto; margin-right: auto; box-shadow: var(--shadow-md); border: 1px solid var(--border-color);">
+                        <img id="summary-screenshot-img" src="" alt="Website Screenshot" style="width: 100%; height: auto; display: block;">
+                    </div>
+
+                    <div class="click-details-hint" style="color: var(--text-muted); font-size: 0.95rem; margin-top: 15px; opacity: 0.85;">
+                        Click here to view detailed score, metrics, and threat analysis &rarr;
+                    </div>
+                    
                     <!-- Hidden elements to keep script.js bindings happy without crashing -->
                     <div style="display: none;">
                         <svg>
@@ -65,7 +76,6 @@
                         </svg>
                         <span id="summary-score-value">0</span>
                         <span id="summary-confidence">0%</span>
-                        <p id="summary-insight-text">-</p>
                     </div>
                 </div>
             </section>
