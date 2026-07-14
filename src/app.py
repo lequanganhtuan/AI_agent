@@ -346,13 +346,12 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
                 logger.info(f"Returning cached FraudReport for URL: {req.url}")
                 return cached_report
 
-        # 2. Invoke the E2E LangGraph Orchestrator
+        # 2. Invoke the E2E Vanilla Async/Await Orchestrator
         from src.agents.runner import AgentRunner
         from src.agents.state import ExecutionStatus
         
         runner = AgentRunner()
-        # Run graph in an async executor thread to keep FastAPI completely responsive
-        state = await asyncio.to_thread(runner.run, req.url)
+        state = await runner.run_async(req.url)
         
         if state.workflow.status == ExecutionStatus.FAILED and not state.report:
             err_msg = state.telemetry.errors[-1].message if state.telemetry.errors else "Unknown workflow failure"

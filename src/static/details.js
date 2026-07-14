@@ -1,62 +1,15 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // Tab switching logic
-    const tabBtns = document.querySelectorAll('.tab-btn');
-    const tabContents = document.querySelectorAll('.tab-content');
-
-    tabBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            tabBtns.forEach(b => b.classList.remove('active'));
-            tabContents.forEach(c => c.classList.add('hidden'));
-
-            btn.classList.add('active');
-            const targetId = btn.getAttribute('data-tab');
-            document.getElementById(targetId).classList.remove('hidden');
-        });
-    });
-
     // Elements
     const detailsSubtitle = document.getElementById('details-subtitle');
     const detailsLoading = document.getElementById('details-loading');
     const detailsError = document.getElementById('details-error');
     const resultsSection = document.getElementById('results-section');
 
-    // Clipboard copy handlers
-    const copySysBtn = document.getElementById('copy-sys-btn');
-    const copyUserBtn = document.getElementById('copy-user-btn');
-    const sysText = document.getElementById('sys-prompt-text');
-    const userText = document.getElementById('user-prompt-text');
-
-    if (copySysBtn) {
-        copySysBtn.addEventListener('click', () => {
-            sysText.select();
-            navigator.clipboard.writeText(sysText.value);
-            copySysBtn.textContent = 'Copied!';
-            setTimeout(() => { copySysBtn.textContent = 'Copy'; }, 2000);
-        });
-    }
-    if (copyUserBtn) {
-        copyUserBtn.addEventListener('click', () => {
-            userText.select();
-            navigator.clipboard.writeText(userText.value);
-            copyUserBtn.textContent = 'Copied!';
-            setTimeout(() => { copyUserBtn.textContent = 'Copy'; }, 2000);
-        });
-    }
-
-    // Static tab elements
     const scorePath = document.getElementById('score-path');
     const scoreValue = document.getElementById('score-value');
     const riskLevelText = document.getElementById('risk-level-text');
-    const scoreCard = document.getElementById('score-card');
-
-    // Threat tab elements
-    const threatScorePath = document.getElementById('threat-score-path');
-    const threatScoreValue = document.getElementById('threat-score-value');
-    const threatRiskLevelText = document.getElementById('threat-risk-level-text');
-    const threatScoreCard = document.getElementById('threat-score-card');
-    const threatConfidence = document.getElementById('threat-confidence');
-    const triggeredSignalsContainer = document.getElementById('triggered-signals-container');
-    const threatSummaryDetails = document.getElementById('threat-summary-details');
+    const mainScoreCard = document.getElementById('main-score-card');
+    const verdictBadge = document.getElementById('verdict-badge');
 
     // Extract ID and fetch
     const urlParams = new URLSearchParams(window.location.search);
@@ -79,14 +32,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const data = await response.json();
-            
-            // Populate Title Subtitle
-            detailsSubtitle.textContent = data.url || data.validation.normalized_url;
+            detailsSubtitle.textContent = data.url || data.normalized_url;
 
-            // Render details
             displayResults(data);
 
-            // Toggle views
             detailsLoading.classList.add('hidden');
             resultsSection.classList.remove('hidden');
 
@@ -102,55 +51,99 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function displayResults(data) {
-        // --- 1. POPULATE STATIC ANALYSIS TAB ---
-        const staticRisk = data.static.risk;
-        const staticScore = staticRisk.score;
-        const staticLevel = staticRisk.risk_level;
-
-        // Update Static Progress Circle Gauge
-        setTimeout(() => {
-            scorePath.setAttribute('stroke-dasharray', `${staticScore}, 100`);
-            animateValue(scoreValue, 0, staticScore, 1000);
-        }, 100);
-
-        // Update Static Card Risk Themes
-        scoreCard.className = 'score-card';
-        scoreCard.classList.add(`theme-${staticLevel}`);
-        riskLevelText.textContent = staticLevel;
-
-        // Populate static components lists
-        populateList('list-lexical', getLexicalSummary(data.static.lexical));
-        populateList('list-brand', getBrandSummary(data.static.brand));
-        populateList('list-pattern', getPatternSummary(data.static.pattern));
-        populateList('list-tld', getTLDSummary(data.static.tld));
-        populateList('list-typo', getTypoSummary(data.static.typosquatting));
-
-        // --- 2. POPULATE THREAT INTELLIGENCE (PHASE 3) TAB ---
+        // 1. COMPOUNDED RISK SCORE & VERDICT RESOLUTION
         const threatRisk = data.threat_intelligence?.risk || data.threat_intel?.risk;
-        const threatScore = threatRisk ? threatRisk.score : 0;
-        const threatLevel = threatRisk ? threatRisk.risk_level : 'low';
-        const confidenceVal = threatRisk ? Math.round(threatRisk.confidence * 100) : 100;
+        const score = threatRisk ? threatRisk.score : 0;
+        const riskLevel = (threatRisk ? threatRisk.risk_level : 'low').toLowerCase();
 
-        // Update Threat Circle Gauge natively out of 100
-        const normalizedThreatScore = Math.min(100, threatScore);
+        // Animate the risk score gauge circle
         setTimeout(() => {
-            threatScorePath.setAttribute('stroke-dasharray', `${normalizedThreatScore}, 100`);
-            animateValue(threatScoreValue, 0, threatScore, 1000);
+            scorePath.setAttribute('stroke-dasharray', `${Math.min(100, score)}, 100`);
+            animateValue(scoreValue, 0, score, 1000);
         }, 100);
 
-        // Update Threat Card Risk Themes
-        threatScoreCard.className = 'score-card';
-        threatScoreCard.classList.add(`theme-${threatLevel}`);
-        threatRiskLevelText.textContent = threatLevel;
-        threatConfidence.textContent = `${confidenceVal}%`;
+        // Apply risk level themes
+        mainScoreCard.className = 'score-card';
+        mainScoreCard.classList.add(`theme-${riskLevel}`);
+        riskLevelText.textContent = riskLevel;
 
-        // Populate Triggered Signals
-        triggeredSignalsContainer.innerHTML = '';
-        const signals = threatRisk ? (threatRisk.triggered_signals || []) : [];
-        if (signals.length === 0) {
-            triggeredSignalsContainer.innerHTML = '<span class="no-signals">No suspicious signals detected.</span>';
+        // Apply action badge styling
+        const action = data.ai?.content?.recommended_action || (score >= 70 ? 'BLOCK' : score >= 40 ? 'WARN' : 'ALLOW');
+        verdictBadge.textContent = action;
+        verdictBadge.className = 'status-pill';
+        if (action === 'BLOCK') {
+            verdictBadge.style.background = 'rgba(239, 68, 68, 0.15)';
+            verdictBadge.style.color = '#ef4444';
+            verdictBadge.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+        } else if (action === 'WARN') {
+            verdictBadge.style.background = 'rgba(245, 158, 11, 0.15)';
+            verdictBadge.style.color = '#f59e0b';
+            verdictBadge.style.border = '1px solid rgba(245, 158, 11, 0.3)';
         } else {
-            signals.forEach(sig => {
+            verdictBadge.style.background = 'rgba(16, 185, 129, 0.15)';
+            verdictBadge.style.color = '#10b981';
+            verdictBadge.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+        }
+
+        // 2. AI CONTENT ANALYSIS & EXPLANATION
+        const aiResult = data.ai || {};
+        document.getElementById('ai-website-purpose').textContent = aiResult.content?.website_purpose || '-';
+        document.getElementById('ai-detected-brand').textContent = aiResult.content?.detected_brand || 'None';
+        document.getElementById('ai-fraud-category').textContent = aiResult.content?.fraud_category || '-';
+        
+        const summaryText = aiResult.content?.summary || threatRisk?.summary || 'No AI safety description compiled.';
+        document.getElementById('ai-summary-text').textContent = summaryText;
+
+        // Populate AI Findings list
+        const findingsDetails = document.getElementById('ai-findings-details');
+        findingsDetails.innerHTML = '';
+        const findings = aiResult.content?.findings || aiResult.content?.reasoning || [];
+        if (findings.length === 0) {
+            findingsDetails.innerHTML = '<div class="bullet-item">No AI findings generated.</div>';
+        } else {
+            const ul = document.createElement('ul');
+            ul.className = 'summary-list';
+            findings.forEach(f => {
+                const li = document.createElement('li');
+                li.textContent = f;
+                ul.appendChild(li);
+            });
+            findingsDetails.appendChild(ul);
+        }
+
+        // 3. EVIDENCE & TRIGGERED INDICATORS
+        const signalsContainer = document.getElementById('triggered-signals-container');
+        signalsContainer.innerHTML = '';
+        
+        // Collate indicators from static, threat, dynamic and AI
+        const collatedSignals = new Set();
+        
+        if (data.validation?.signals) {
+            data.validation.signals.forEach(s => collatedSignals.add(s));
+        }
+        if (data.static?.risk?.triggered_signals) {
+            data.static.risk.triggered_signals.forEach(s => collatedSignals.add(s));
+        }
+        if (threatRisk?.triggered_signals) {
+            threatRisk.triggered_signals.forEach(s => collatedSignals.add(s));
+        }
+        if (data.dynamic?.signals) {
+            data.dynamic.signals.forEach(s => {
+                if (typeof s === 'string') collatedSignals.add(s);
+                else if (s && s.signal) collatedSignals.add(s.signal);
+            });
+        }
+        if (aiResult.signals) {
+            aiResult.signals.forEach(s => {
+                if (typeof s === 'string') collatedSignals.add(s);
+                else if (s && s.signal) collatedSignals.add(s.signal);
+            });
+        }
+
+        if (collatedSignals.size === 0) {
+            signalsContainer.innerHTML = '<span class="no-signals" style="color: var(--text-muted); font-size: 0.95rem;">No security indicators triggered.</span>';
+        } else {
+            collatedSignals.forEach(sig => {
                 const span = document.createElement('span');
                 span.textContent = sig;
                 span.className = 'badge';
@@ -162,395 +155,52 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     span.classList.add('badge-info');
                 }
-                triggeredSignalsContainer.appendChild(span);
+                signalsContainer.appendChild(span);
             });
         }
 
-        // Populate Explanation Summary Bullets
-        threatSummaryDetails.innerHTML = '';
-        const summaryText = threatRisk ? (threatRisk.summary || '') : '';
-        const summaryLines = summaryText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-        if (summaryLines.length === 0) {
-            threatSummaryDetails.innerHTML = '<p class="clean-summary">No threats found.</p>';
+        // 4. WEBSITE SCREENSHOT SECTION (WITH PERFORMANCE BYPASS DETECTION)
+        const screenshotImg = document.getElementById('dynamic-screenshot-img');
+        const screenshotPlaceholder = document.getElementById('dynamic-screenshot-placeholder');
+        const screenshotStatus = document.getElementById('screenshot-status-text');
+
+        const dynamicResult = data.dynamic || {};
+        
+        if (dynamicResult.screenshot_path) {
+            screenshotImg.src = dynamicResult.screenshot_path;
+            screenshotImg.classList.remove('hidden');
+            screenshotPlaceholder.classList.add('hidden');
         } else {
-            const ul = document.createElement('ul');
-            ul.className = 'summary-list';
-            summaryLines.forEach(line => {
-                const li = document.createElement('li');
-                li.textContent = line.startsWith('✓') ? line.substring(1).trim() : line;
-                ul.appendChild(li);
-            });
-            threatSummaryDetails.appendChild(ul);
+            screenshotImg.classList.add('hidden');
+            screenshotPlaceholder.classList.remove('hidden');
+            
+            // Decipher if skipped in Tier 2 to optimize request latency or if sandbox execution simply failed
+            if (data.control?.should_skip_dynamic) {
+                screenshotStatus.innerHTML = `
+                    <span style="display: block; font-weight: 600; color: #60a5fa; margin-bottom: 5px;">Sandbox Bypassed</span>
+                    Crawling skipped to optimize performance (Threat intelligence resolved a definitive verdict in Tier 2).
+                `;
+            } else if (dynamicResult.status === 'failed') {
+                screenshotStatus.innerHTML = `
+                    <span style="display: block; font-weight: 600; color: #ef4444; margin-bottom: 5px;">Scraper Timeout</span>
+                    Playwright sandbox failed to crawl the page or capture visual assets.
+                `;
+            } else {
+                screenshotStatus.textContent = 'No Screenshot Captured (Dynamic Scraper bypassed).';
+            }
         }
 
-        // Populate Engine Cards
+        // 5. THREAT PROVIDER VERDICTS
         const ti = data.threat_intelligence || data.threat_intel || {};
-        populateEngineVT(ti.virustotal, threatRisk ? threatRisk.provider_hits?.virustotal : false);
-        populateEngineGSB(ti.google_safe_browsing, threatRisk ? threatRisk.provider_hits?.google_safe_browsing : false);
-        populateEngineURLHaus(ti.urlhaus, threatRisk ? threatRisk.provider_hits?.urlhaus : false);
-        populateEngineURLScan(ti.urlscan, threatRisk ? threatRisk.provider_hits?.urlscan : false);
-        populateEngineAbuseIPDB(ti.ip_reputation, threatRisk ? threatRisk.provider_hits?.ip_reputation : false);
-
-        // --- 3. POPULATE DYNAMIC ANALYSIS (PHASE 4) TAB ---
-        const dynamicResult = data.dynamic || { status: 'failed' };
-        const dynamicStatusVal = dynamicResult.status || 'failed';
-        const dynamicStatusText = document.getElementById('dynamic-status');
-        dynamicStatusText.textContent = dynamicStatusVal.toUpperCase();
-
-        const dynamicScorePath = document.getElementById('dynamic-score-path');
-        const dynamicScoreValue = document.getElementById('dynamic-score-value');
-        const dynamicRiskLevelText = document.getElementById('dynamic-risk-level-text');
-        const dynamicScoreCard = document.getElementById('dynamic-score-card');
-
-        if (dynamicStatusVal === 'completed' && dynamicResult.risk) {
-            const dRisk = dynamicResult.risk;
-            const dScore = dRisk.score;
-            const dLevel = dRisk.level;
-
-            setTimeout(() => {
-                dynamicScorePath.setAttribute('stroke-dasharray', `${dScore}, 100`);
-                animateValue(dynamicScoreValue, 0, dScore, 1000);
-            }, 100);
-
-            dynamicScoreCard.className = 'score-card';
-            dynamicScoreCard.classList.add(`theme-${dLevel.toLowerCase()}`);
-            dynamicRiskLevelText.textContent = dLevel.toUpperCase();
-
-            const pageTitle = document.getElementById('dynamic-page-title');
-            const statusCode = document.getElementById('dynamic-status-code');
-            const loadTime = document.getElementById('dynamic-load-time');
-            const finalUrl = document.getElementById('dynamic-final-url');
-
-            pageTitle.textContent = (dynamicResult.dom && dynamicResult.dom.has_login_form) ? "Login Portal" : "Webpage loaded";
-            statusCode.textContent = (dynamicResult.redirects && dynamicResult.redirects.redirect_count > 0) ? "302 -> 200" : "200 OK";
-            loadTime.textContent = (dynamicResult.network && dynamicResult.network.request_count > 0) ? "1.61 s" : "-";
-            finalUrl.textContent = data.url || data.validation.normalized_url;
-
-            const dynamicSignalsContainer = document.getElementById('dynamic-signals-container');
-            dynamicSignalsContainer.innerHTML = '';
-            const dSignals = dRisk.triggered_signals || [];
-            if (dSignals.length === 0) {
-                dynamicSignalsContainer.innerHTML = '<span class="no-signals">No suspicious signals detected.</span>';
-            } else {
-                dSignals.forEach(sig => {
-                    const span = document.createElement('span');
-                    const name = (typeof sig === 'object') ? sig.signal : sig;
-                    const sev = (typeof sig === 'object') ? sig.severity : 'LOW';
-                    span.textContent = name;
-                    span.className = 'badge';
-                    if (sev === 'HIGH') {
-                        span.classList.add('badge-danger');
-                    } else if (sev === 'MEDIUM') {
-                        span.classList.add('badge-warning');
-                    } else {
-                        span.classList.add('badge-info');
-                    }
-                    dynamicSignalsContainer.appendChild(span);
-                });
-            }
-
-            const dynamicSummaryDetails = document.getElementById('dynamic-summary-details');
-            dynamicSummaryDetails.innerHTML = '';
-            const dSummary = dynamicResult.summary || [];
-            if (dSummary.length === 0) {
-                dynamicSummaryDetails.innerHTML = '<p class="clean-summary">No threats found.</p>';
-            } else {
-                const ul = document.createElement('ul');
-                ul.className = 'summary-list';
-                dSummary.forEach(line => {
-                    const li = document.createElement('li');
-                    li.textContent = line;
-                    ul.appendChild(li);
-                });
-                dynamicSummaryDetails.appendChild(ul);
-            }
-
-            const screenshotImg = document.getElementById('dynamic-screenshot-img');
-            const screenshotPl = document.getElementById('dynamic-screenshot-placeholder');
-            if (dynamicResult.screenshot_path) {
-                const cleanPath = '/' + dynamicResult.screenshot_path.replace(/\\/g, '/');
-                screenshotImg.src = cleanPath;
-                screenshotImg.classList.remove('hidden');
-                screenshotPl.classList.add('hidden');
-                screenshotImg.onclick = () => {
-                    window.open(cleanPath, '_blank');
-                };
-            } else {
-                screenshotImg.classList.add('hidden');
-                screenshotPl.classList.remove('hidden');
-            }
-
-            const redirectTimeline = document.getElementById('dynamic-redirect-chain');
-            redirectTimeline.innerHTML = '';
-            const redirects = dynamicResult.redirects;
-            if (redirects && redirects.redirect_chain && redirects.redirect_chain.length > 0) {
-                redirects.redirect_chain.forEach((u, index) => {
-                    const item = document.createElement('div');
-                    item.className = 'timeline-item';
-
-                    const node = document.createElement('div');
-                    node.className = 'timeline-node';
-                    if (redirects.has_redirect_loop && index === redirects.redirect_chain.length - 1) {
-                        node.classList.add('loop');
-                    } else if (redirects.redirects_to_private_ip) {
-                        node.classList.add('private-ip');
-                    }
-
-                    const content = document.createElement('div');
-                    content.className = 'timeline-content';
-
-                    const urlSpan = document.createElement('div');
-                    urlSpan.className = 'timeline-url';
-                    urlSpan.textContent = u;
-
-                    const meta = document.createElement('div');
-                    meta.className = 'timeline-meta';
-                    meta.textContent = (index === 0) ? 'Initial request' : `Hop #${index}`;
-
-                    content.appendChild(urlSpan);
-                    content.appendChild(meta);
-                    item.appendChild(node);
-                    item.appendChild(content);
-                    redirectTimeline.appendChild(item);
-                });
-            } else {
-                redirectTimeline.innerHTML = '<div class="timeline-empty">No redirects occurred</div>';
-            }
-
-            const dom = dynamicResult.dom;
-            if (dom) {
-                document.getElementById('dom-form-count').textContent = dom.form_count;
-                document.getElementById('dom-has-password').className = `sub-badge ${dom.has_password_field ? 'active' : ''}`;
-                document.getElementById('dom-has-otp').className = `sub-badge ${dom.has_otp_field ? 'active' : ''}`;
-                document.getElementById('dom-has-card').className = `sub-badge ${dom.has_credit_card_field ? 'active' : ''}`;
-
-                document.getElementById('dom-iframe-count').textContent = dom.iframe_count;
-                document.getElementById('dom-hidden-iframes').textContent = `${dom.hidden_iframe_count} hidden`;
-
-                document.getElementById('dom-has-eval').className = `alert-badge ${dom.has_eval ? 'triggered' : ''}`;
-                document.getElementById('dom-has-atob').className = `alert-badge ${dom.has_atob ? 'triggered' : ''}`;
-                document.getElementById('dom-has-unescape').className = `alert-badge ${dom.has_unescape ? 'triggered' : ''}`;
-
-                document.getElementById('dom-has-meta-refresh').textContent = dom.has_meta_refresh ? 'Yes' : 'No';
-                const metaTarget = document.getElementById('dom-meta-refresh-target');
-                if (dom.has_meta_refresh && dom.meta_refresh_url) {
-                    metaTarget.textContent = `Redirect target: ${dom.meta_refresh_url}`;
-                } else {
-                    metaTarget.textContent = '';
-                }
-            }
-
-            const net = dynamicResult.network;
-            if (net) {
-                document.getElementById('net-request-count').textContent = net.request_count;
-                document.getElementById('net-failed-requests').textContent = '0 failed';
-
-                document.getElementById('net-apex-count').textContent = net.external_domains ? net.external_domains.length : 0;
-                populateDomainList('net-apex-list', net.external_domains);
-
-                document.getElementById('net-third-party-count').textContent = net.third_party_domains ? net.third_party_domains.length : 0;
-                populateDomainList('net-third-party-list', net.third_party_domains);
-
-                document.getElementById('net-cdn-count').textContent = net.cdn_domains ? net.cdn_domains.length : 0;
-                populateDomainList('net-cdn-list', net.cdn_domains);
-            }
-        } else {
-            dynamicScorePath.setAttribute('stroke-dasharray', '0, 100');
-            dynamicScoreValue.textContent = '0';
-            dynamicScoreCard.className = 'score-card theme-low';
-            dynamicRiskLevelText.textContent = 'UNKNOWN';
-
-            document.getElementById('dynamic-page-title').textContent = '-';
-            document.getElementById('dynamic-status-code').textContent = '-';
-            document.getElementById('dynamic-load-time').textContent = '-';
-            document.getElementById('dynamic-final-url').textContent = '-';
-
-            document.getElementById('dynamic-signals-container').innerHTML = '<span class="no-signals">No signals triggered.</span>';
-            document.getElementById('dynamic-summary-details').innerHTML = '<p class="clean-summary">Analysis was not completed or failed.</p>';
-
-            document.getElementById('dynamic-screenshot-img').classList.add('hidden');
-            document.getElementById('dynamic-screenshot-placeholder').classList.remove('hidden');
-            document.getElementById('dynamic-redirect-chain').innerHTML = '<div class="timeline-empty">No redirects occurred</div>';
-        }
-
-        // --- 4. POPULATE AI CONTENT ANALYSIS (PHASE 5) ---
-        const aiResult = data.ai;
-        if (aiResult && !aiResult.error) {
-            const aiScore = aiResult.risk.score;
-            const aiLevel = aiResult.risk.level || 'LOW';
-
-            // Gauge
-            const aiScorePath = document.getElementById('ai-score-path');
-            const aiScoreValue = document.getElementById('ai-score-value');
-            const aiRiskLevelText = document.getElementById('ai-risk-level-text');
-            const aiScoreCard = document.getElementById('ai-score-card');
-
-            setTimeout(() => {
-                aiScorePath.setAttribute('stroke-dasharray', `${Math.min(100, aiScore)}, 100`);
-                animateValue(aiScoreValue, 0, Math.round(aiScore), 1000);
-            }, 100);
-
-            aiScoreCard.className = 'score-card';
-            aiScoreCard.classList.add(`theme-${aiLevel.toLowerCase()}`);
-            aiRiskLevelText.textContent = aiLevel;
-
-            // Verdict
-            const actionBadge = document.getElementById('ai-action-badge');
-            const action = aiResult.content.recommended_action || 'ALLOW';
-            actionBadge.textContent = action;
-            actionBadge.className = 'status-pill';
-            if (action === 'BLOCK') {
-                actionBadge.style.background = 'rgba(239, 68, 68, 0.15)';
-                actionBadge.style.color = '#ef4444';
-                actionBadge.style.border = '1px solid rgba(239, 68, 68, 0.3)';
-            } else if (action === 'WARN') {
-                actionBadge.style.background = 'rgba(245, 158, 11, 0.15)';
-                actionBadge.style.color = '#f59e0b';
-                actionBadge.style.border = '1px solid rgba(245, 158, 11, 0.3)';
-            } else if (action === 'MONITOR') {
-                actionBadge.style.background = 'rgba(59, 130, 246, 0.15)';
-                actionBadge.style.color = '#3b82f6';
-                actionBadge.style.border = '1px solid rgba(59, 130, 246, 0.3)';
-            } else {
-                actionBadge.style.background = 'rgba(16, 185, 129, 0.15)';
-                actionBadge.style.color = '#10b981';
-                actionBadge.style.border = '1px solid rgba(16, 185, 129, 0.3)';
-            }
-
-            // Insights
-            document.getElementById('ai-website-purpose').textContent = aiResult.content.website_purpose || '-';
-            document.getElementById('ai-detected-brand').textContent = aiResult.content.detected_brand || 'None';
-            document.getElementById('ai-fraud-category').textContent = aiResult.content.fraud_category || '-';
-
-            const rawVerdictConf = aiResult.content.confidence;
-            const cleanVerdictConf = (typeof rawVerdictConf === 'number') ? `${Math.round(rawVerdictConf * 100)}%` : '-';
-            document.getElementById('ai-confidence-value').textContent = cleanVerdictConf;
-
-            const rawBrandConf = aiResult.content.brand_confidence;
-            const cleanBrandConf = (typeof rawBrandConf === 'number') ? `${Math.round(rawBrandConf * 100)}%` : '-';
-            document.getElementById('ai-brand-confidence').textContent = cleanBrandConf;
-
-            // Reasoning list
-            const reasoningDetails = document.getElementById('ai-reasoning-details');
-            reasoningDetails.innerHTML = '';
-            const reasoning = aiResult.content.reasoning || [];
-            if (reasoning.length === 0) {
-                reasoningDetails.innerHTML = '<div class="bullet-item">No reasoning telemetry compiled.</div>';
-            } else {
-                const ul = document.createElement('ul');
-                ul.className = 'summary-list';
-                reasoning.forEach(r => {
-                    const li = document.createElement('li');
-                    li.textContent = r;
-                    ul.appendChild(li);
-                });
-                reasoningDetails.appendChild(ul);
-            }
-
-            // Findings list
-            const findingsDetails = document.getElementById('ai-findings-details');
-            findingsDetails.innerHTML = '';
-            const findings = aiResult.content.findings || [];
-            if (findings.length === 0) {
-                findingsDetails.innerHTML = '<div class="bullet-item">No indicators generated.</div>';
-            } else {
-                const ul = document.createElement('ul');
-                ul.className = 'summary-list';
-                findings.forEach(f => {
-                    const li = document.createElement('li');
-                    li.textContent = f;
-                    ul.appendChild(li);
-                });
-                findingsDetails.appendChild(ul);
-            }
-
-            // Signals Badges
-            const signalsBadgeContainer = document.getElementById('ai-signals-badge-container');
-            signalsBadgeContainer.innerHTML = '';
-            const aiSignals = aiResult.signals || [];
-            if (aiSignals.length === 0) {
-                signalsBadgeContainer.innerHTML = '<span class="no-signals">No AI signals generated.</span>';
-            } else {
-                aiSignals.forEach(sig => {
-                    const span = document.createElement('span');
-                    span.textContent = `${sig.signal} [${sig.severity}]`;
-                    span.className = 'badge';
-                    if (sig.severity === 'CRITICAL' || sig.severity === 'HIGH') {
-                        span.classList.add('badge-danger');
-                    } else if (sig.severity === 'MEDIUM') {
-                        span.classList.add('badge-warning');
-                    } else {
-                        span.classList.add('badge-info');
-                    }
-                    span.title = sig.description || '';
-                    signalsBadgeContainer.appendChild(span);
-                });
-            }
-
-            // Prompts Panel Textareas
-            document.getElementById('sys-prompt-text').value = aiResult.system_prompt || '';
-            document.getElementById('user-prompt-text').value = aiResult.user_prompt || '';
-        } else {
-            // Default when no ai data or error occurred
-            document.getElementById('ai-score-path').setAttribute('stroke-dasharray', '0, 100');
-            document.getElementById('ai-score-value').textContent = '0';
-            document.getElementById('ai-risk-level-text').textContent = aiResult && aiResult.error ? 'ERROR' : 'UNKNOWN';
-
-            if (aiResult && aiResult.error) {
-                document.getElementById('ai-website-purpose').innerHTML = `<span style="color: var(--risk-high); font-weight: 600;">AI analysis failed: ${aiResult.error}</span>`;
-                document.getElementById('ai-reasoning-details').innerHTML = `<div class="bullet-item" style="color: var(--risk-high); font-size: 13px; font-weight: 500;">Error Details: ${aiResult.error}</div>`;
-            } else {
-                document.getElementById('ai-website-purpose').textContent = '-';
-                document.getElementById('ai-reasoning-details').innerHTML = '<div class="bullet-item">No reasoning telemetry compiled.</div>';
-            }
-
-            document.getElementById('ai-detected-brand').textContent = '-';
-            document.getElementById('ai-fraud-category').textContent = '-';
-            document.getElementById('ai-brand-confidence').textContent = '-';
-            document.getElementById('ai-confidence-value').textContent = '-';
-            document.getElementById('ai-findings-details').innerHTML = '<div class="bullet-item">No indicators generated.</div>';
-            document.getElementById('ai-signals-badge-container').innerHTML = '<span class="no-signals">No indicators reported.</span>';
-
-            document.getElementById('sys-prompt-text').value = aiResult ? (aiResult.system_prompt || '') : 'System prompt will generate after analysis...';
-            document.getElementById('user-prompt-text').value = aiResult ? (aiResult.user_prompt || '') : 'User prompt will generate after analysis...';
-        }
+        populateEngineVT(ti.virustotal, threatRisk?.provider_hits?.virustotal);
+        populateEngineGSB(ti.google_safe_browsing, threatRisk?.provider_hits?.google_safe_browsing);
+        populateEngineURLHaus(ti.urlhaus, threatRisk?.provider_hits?.urlhaus);
+        populateEngineURLScan(ti.urlscan, threatRisk?.provider_hits?.urlscan);
+        populateEngineAbuseIPDB(ti.ip_reputation, threatRisk?.provider_hits?.ip_reputation);
+        populateEnginePhishTank(ti.phishtank, threatRisk?.provider_hits?.phishtank);
     }
 
-    function populateDomainList(elementId, list) {
-        const container = document.getElementById(elementId);
-        container.innerHTML = '';
-        if (!list || list.length === 0) {
-            container.textContent = 'None';
-            return;
-        }
-        list.forEach(d => {
-            const div = document.createElement('div');
-            div.style.padding = '2px 0';
-            div.style.borderBottom = '1px solid rgba(255,255,255,0.02)';
-            div.textContent = d;
-            container.appendChild(div);
-        });
-    }
-
-    function populateList(elementId, items) {
-        const ul = document.getElementById(elementId);
-        ul.innerHTML = '';
-
-        if (!items || items.length === 0) {
-            const li = document.createElement('li');
-            li.textContent = 'No suspicious findings.';
-            li.className = 'no-findings';
-            ul.appendChild(li);
-            return;
-        }
-
-        items.forEach(item => {
-            const li = document.createElement('li');
-            li.textContent = item;
-            ul.appendChild(li);
-        });
-    }
-
+    // --- RENDER HELPERS ---
     function animateValue(obj, start, end, duration) {
         let startTimestamp = null;
         const step = (timestamp) => {
@@ -570,7 +220,7 @@ document.addEventListener('DOMContentLoaded', () => {
         card.className = 'engine-card border-warning';
         status.textContent = 'API Error';
         status.className = 'status-pill status-warning';
-        detail.textContent = dataObj.error_message || 'Provider lookup failed';
+        detail.textContent = dataObj?.error_message || 'Lookup failed';
     }
 
     function populateEngineVT(vt, isHit) {
@@ -585,7 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isHit && vt && vt.malicious > 0) {
             status.textContent = 'Malicious';
             status.className = 'status-pill status-danger';
-            detail.textContent = `${vt.malicious} / ${vt.total_engines || 0} malicious engines`;
+            detail.textContent = `${vt.malicious} / ${vt.total_engines || 0} flagged engines`;
             card.classList.add('border-danger');
         } else {
             status.textContent = 'Clean';
@@ -611,7 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             status.textContent = 'Clean';
             status.className = 'status-pill status-clean';
-            detail.textContent = 'No listing found';
+            detail.textContent = 'No threats found';
         }
     }
 
@@ -632,7 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             status.textContent = 'Clean';
             status.className = 'status-pill status-clean';
-            detail.textContent = 'No listing found';
+            detail.textContent = 'No threats found';
         }
     }
 
@@ -648,11 +298,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const globalScore = us ? us.malicious_score || 0 : 0;
         const localScore = us ? Math.round((us.final_local_score || 0) * 100) : 0;
         const formScore = us ? Math.round((us.form_risk_score || 0) * 100) : 0;
-        const hostingScore = us ? Math.round((us.hosting_risk_score || 0) * 100) : 0;
-        const maxScore = Math.max(globalScore, localScore, formScore, hostingScore);
+        const maxScore = Math.max(globalScore, localScore, formScore);
 
         if (isHit || maxScore >= 40) {
-            const isMalicious = globalScore >= 80 || localScore >= 70 || formScore >= 80;
+            const isMalicious = maxScore >= 75;
             status.textContent = isMalicious ? 'Malicious' : 'Suspicious';
             status.className = `status-pill status-${isMalicious ? 'danger' : 'warning'}`;
             detail.textContent = `Risk score: ${maxScore}%`;
@@ -660,7 +309,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             status.textContent = 'Clean';
             status.className = 'status-pill status-clean';
-            detail.textContent = `Score: ${globalScore}%`;
+            detail.textContent = `Risk score: ${maxScore}%`;
         }
     }
 
@@ -674,58 +323,37 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         const score = ab ? ab.abuse_score || 0 : 0;
-        if (score >= 40 || (ab && ab.total_reports > 10)) {
-            const isMalicious = score >= 80;
+        if (score >= 40) {
+            const isMalicious = score >= 75;
             status.textContent = isMalicious ? 'Malicious' : 'Suspicious';
             status.className = `status-pill status-${isMalicious ? 'danger' : 'warning'}`;
-            detail.textContent = `Confidence score: ${score}% (${ab.total_reports} reports)`;
+            detail.textContent = `Confidence: ${score}% (${ab.total_reports || 0} reports)`;
             card.classList.add(isMalicious ? 'border-danger' : 'border-warning');
         } else {
             status.textContent = 'Clean';
             status.className = 'status-pill status-clean';
-            detail.textContent = `Confidence score: ${score}%`;
+            detail.textContent = `Confidence: ${score}%`;
         }
     }
 
-    function getLexicalSummary(data) {
-        const findings = [];
-        if (data.url_length > 100) findings.push(`Long URL detected (${data.url_length} chars)`);
-        if (data.subdomain_count >= 2) findings.push(`Multiple subdomains (${data.subdomain_count})`);
-        if (data.digit_ratio_domain > 0.3) findings.push(`High digit ratio (${(data.digit_ratio_domain * 100).toFixed(0)}%)`);
-        return findings;
-    }
-
-    function getBrandSummary(data) {
-        const findings = [];
-        if (data.detected_brand) findings.push(`Detected brand: ${data.detected_brand}`);
-        if (data.brand_in_subdomain) findings.push(`Brand found in subdomain`);
-        if (data.homoglyph_detected) findings.push(`Homoglyph attack detected`);
-        return findings;
-    }
-
-    function getPatternSummary(data) {
-        const findings = [];
-        if (data.suspicious_keyword_count > 0) findings.push(`Found ${data.suspicious_keyword_count} suspicious keywords`);
-        if (data.encoded_character_detected) findings.push(`Encoded characters detected`);
-        if (data.double_extension_detected) findings.push(`Double extension found`);
-        if (data.ip_address_url) findings.push(`IP address used as domain`);
-        if (data.url_shortener_detected) findings.push(`URL shortener used`);
-        return findings;
-    }
-
-    function getTLDSummary(data) {
-        const findings = [];
-        if (data.tld) findings.push(`TLD: .${data.tld}`);
-        if (data.high_risk_tld) findings.push(`High risk TLD`);
-        if (data.medium_risk_tld) findings.push(`Medium risk TLD`);
-        return findings;
-    }
-
-    function getTypoSummary(data) {
-        const findings = [];
-        if (data.suspicious) findings.push(`Suspicious typosquatting pattern`);
-        if (data.target_domain) findings.push(`Similar to: ${data.target_domain}`);
-        if (data.homoglyph_detected) findings.push(`Homoglyph usage found`);
-        return findings;
+    function populateEnginePhishTank(pt, isHit) {
+        const status = document.getElementById('engine-phishtank-status');
+        const detail = document.getElementById('engine-phishtank-detail');
+        const card = document.getElementById('card-phishtank');
+        card.className = 'engine-card';
+        if (pt && pt.error_message) {
+            handleEngineError(card, status, detail, pt);
+            return;
+        }
+        if (isHit && pt && pt.in_database) {
+            status.textContent = 'Malicious';
+            status.className = 'status-pill status-danger';
+            detail.textContent = 'Listed in PhishTank database';
+            card.classList.add('border-danger');
+        } else {
+            status.textContent = 'Clean';
+            status.className = 'status-pill status-clean';
+            detail.textContent = 'No listing found';
+        }
     }
 });

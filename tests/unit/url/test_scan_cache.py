@@ -5,7 +5,6 @@ from unittest.mock import MagicMock, AsyncMock, patch
 
 from src.core.cache.factory import get_cache
 from src.core.cache.memory_cache import InMemoryCache
-from src.core.cache.redis_cache import RedisCache
 from src.core.report.fraud_report import FraudReport
 from src.core.settings import settings
 
@@ -85,33 +84,6 @@ async def test_in_memory_cache_expiration(sample_report):
     retrieved = await cache.get("expired_key")
     assert retrieved is None
 
-@pytest.mark.anyio
-async def test_redis_cache_get_set(sample_report):
-    cache = RedisCache("redis://localhost:6379")
-    
-    # Mock redis client calls
-    mock_redis = AsyncMock()
-    mock_redis.get.return_value = None
-    cache._client = mock_redis
-    
-    # Get missing
-    res = await cache.get("missing")
-    assert res is None
-    mock_redis.get.assert_called_once_with("scan:missing")
-    
-    # Set item
-    from unittest.mock import ANY
-    mock_redis.set = AsyncMock()
-    await cache.set("key", sample_report, ttl=60)
-    mock_redis.set.assert_called_once_with("scan:key", ANY, ex=60)
-    
-    # Get present item
-    import json
-    mock_redis.get.return_value = json.dumps(VALID_REPORT_DICT)
-    res = await cache.get("key")
-    assert res is not None
-    assert res.id == "f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
-
 def test_cache_factory_selection():
     # If redis_url is unset, factory returns InMemoryCache
     with patch("src.core.cache.factory.settings") as mock_settings:
@@ -119,8 +91,8 @@ def test_cache_factory_selection():
         cache = get_cache()
         assert isinstance(cache, InMemoryCache)
         
-    # If redis_url is set, factory returns RedisCache
+    # If redis_url is set, factory still returns InMemoryCache (since Redis is deleted)
     with patch("src.core.cache.factory.settings") as mock_settings:
         mock_settings.redis_url = "redis://localhost:6379"
         cache = get_cache()
-        assert isinstance(cache, RedisCache)
+        assert isinstance(cache, InMemoryCache)

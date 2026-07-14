@@ -12,10 +12,27 @@ def restore_registry_tools():
     yield
     tool_registry._tools = original_tools
 
+class MockInconclusiveThreatTool(BaseTool):
+    def _execute(self, state) -> Any:
+        pass
+    def run(self, state):
+        from src.core.models import ThreatIntelligenceResult, ThreatIntelligenceRisk
+        res = ThreatIntelligenceResult(
+            risk=ThreatIntelligenceRisk(score=10, risk_level="low", summary="Mock suspicious threat", triggered_signals=["SUSPICIOUS_DOMAIN"]),
+            virustotal={},
+            google_safe_browsing={},
+            urlscan={},
+            ip_reputation={},
+            urlhaus={"query_status": "no_match"}
+        )
+        return ToolResult(success=True, data=res, duration=0.05)
+
 def test_valid_url_path():
     """E2E Smoke Test 1: Valid URL execution traversal completes successfully."""
     runner = AgentRunner()
-    # Runs the standard success path (no cache hit, valid URL format)
+    # Register mock threat tool to make it inconclusive at Tier 2 (proceeding to all nodes)
+    tool_registry._tools["threat"] = MockInconclusiveThreatTool()
+    
     state = runner.run("https://example.com")
     
     assert state.workflow.status == ExecutionStatus.SUCCESS
@@ -86,6 +103,7 @@ def test_dynamic_retry_path():
     # Register the transient failure mock tool in the registry
     mock_tool = MockTransientFailDynamicTool()
     tool_registry._tools["dynamic"] = mock_tool
+    tool_registry._tools["threat"] = MockInconclusiveThreatTool()
 
     state = runner.run("https://retry-domain.com")
     
@@ -111,6 +129,7 @@ def test_ai_node_failure_path():
 
     # Register the mock tool
     tool_registry._tools["ai"] = MockFatalFailAITool()
+    tool_registry._tools["threat"] = MockInconclusiveThreatTool()
 
     state = runner.run("https://ai-fails.net")
     

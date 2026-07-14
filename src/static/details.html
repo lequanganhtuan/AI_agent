@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multi-Phase Analysis Details - Enterprise URL Safety Analyzer</title>
+    <title>Analysis Details - Enterprise URL Safety Analyzer</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -44,17 +44,13 @@
             <div id="details-error" class="error-message hidden" style="margin-bottom: 3rem; text-align: center; padding: 2rem;"></div>
 
             <section id="results-section" class="results-section hidden">
-
-                <div class="tabs-container">
-                    <button class="tab-btn active" data-tab="static-tab">Static Heuristics</button>
-                    <button class="tab-btn" data-tab="threat-tab">Threat Intelligence (Phase 3)</button>
-                    <button class="tab-btn" data-tab="dynamic-tab">Dynamic Analysis (Phase 4)</button>
-                    <button class="tab-btn" data-tab="ai-tab">AI Content Analysis (Phase 5)</button>
-                </div>
-
-                <div id="static-tab" class="tab-content">
-                    <div class="dashboard">
-                        <div class="score-card" id="score-card">
+                <div class="details-layout" style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 30px; margin-top: 20px;">
+                    
+                    <!-- Left Column: Score, AI Explanation and Reasoning -->
+                    <div class="details-left-col" style="display: flex; flex-direction: column; gap: 24px;">
+                        
+                        <!-- Score and Verdict card -->
+                        <div class="score-card" id="main-score-card" style="display: flex; align-items: center; gap: 30px; padding: 30px;">
                             <div class="score-circle">
                                 <svg viewBox="0 0 36 36" class="circular-chart">
                                     <path class="circle-bg"
@@ -65,390 +61,116 @@
                                 </svg>
                             </div>
                             <div class="risk-info">
-                                <h2>Risk Score</h2>
-                                <h3 id="risk-level-text" class="risk-level">Unknown</h3>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="phases-grid">
-                        <div class="phase-card" id="phase-lexical">
-                            <h4>Lexical Analysis</h4>
-                            <ul class="summary-list" id="list-lexical"></ul>
-                        </div>
-                        <div class="phase-card" id="phase-brand">
-                            <h4>Brand Analysis</h4>
-                            <ul class="summary-list" id="list-brand"></ul>
-                        </div>
-                        <div class="phase-card" id="phase-pattern">
-                            <h4>Pattern Analysis</h4>
-                            <ul class="summary-list" id="list-pattern"></ul>
-                        </div>
-                        <div class="phase-card" id="phase-tld">
-                            <h4>TLD Analysis</h4>
-                            <ul class="summary-list" id="list-tld"></ul>
-                        </div>
-                        <div class="phase-card" id="phase-typo">
-                            <h4>Typosquatting Analysis</h4>
-                            <ul class="summary-list" id="list-typo"></ul>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="threat-tab" class="tab-content hidden">
-                    <div class="threat-layout">
-
-                        <div class="threat-main-cards">
-                            <div class="score-card" id="threat-score-card">
-                                <div class="score-circle">
-                                    <svg viewBox="0 0 36 36" class="circular-chart">
-                                        <path class="circle-bg"
-                                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                        <path class="circle" id="threat-score-path" stroke-dasharray="0, 100"
-                                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                        <text x="18" y="20.35" class="percentage" id="threat-score-value">0</text>
-                                    </svg>
-                                </div>
-                                <div class="risk-info">
-                                    <h2>Compounded Risk</h2>
-                                    <h3 id="threat-risk-level-text" class="risk-level">Unknown</h3>
-                                    <div class="meta-row">
-                                        <span class="meta-label">Confidence:</span>
-                                        <span id="threat-confidence" class="meta-value">0%</span>
-                                    </div>
+                                <h2 style="font-size: 1.6rem; margin-bottom: 5px;">Compounded Threat Risk</h2>
+                                <h3 id="risk-level-text" class="risk-level" style="font-size: 1.8rem; font-weight: 800; text-transform: uppercase; margin-bottom: 12px;">Unknown</h3>
+                                <div class="meta-row" style="display: flex; gap: 10px; align-items: center; margin-top: 6px;">
+                                    <span class="meta-label" style="color: var(--text-muted); font-size: 0.95rem;">Verdict:</span>
+                                    <span id="verdict-badge" class="status-pill status-clean" style="font-weight: 600;">ALLOW</span>
                                 </div>
                             </div>
-
-                            <div class="detail-card">
-                                <h4>Triggered Threat Signals</h4>
-                                <div class="badge-container" id="triggered-signals-container"></div>
-                            </div>
                         </div>
 
-                        <div class="detail-card summary-card">
-                            <h4>Explanation Summary</h4>
-                            <div class="summary-bullets" id="threat-summary-details"></div>
-                        </div>
-
+                        <!-- AI Summary & Insights -->
                         <div class="detail-card">
-                            <h4>Engine Verdict Details</h4>
-                            <div class="engines-grid">
-                                <div class="engine-card" id="card-vt">
-                                    <h5>VirusTotal</h5>
-                                    <div class="status-pill status-clean" id="engine-vt-status">Clean</div>
-                                    <p class="engine-sub" id="engine-vt-detail">0 / 0 engines</p>
+                            <h4 style="font-size: 1.3rem; color: #a78bfa; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px;">Gemini AI Analysis & Explanation</h4>
+                            <div class="metrics-list" style="margin-bottom: 20px;">
+                                <div class="metric-row">
+                                    <span class="metric-label">Website Purpose:</span>
+                                    <span id="ai-website-purpose" class="metric-value" style="font-weight: 500;">-</span>
                                 </div>
-                                <div class="engine-card" id="card-gsb">
-                                    <h5>Google Safe Browsing</h5>
-                                    <div class="status-pill status-clean" id="engine-gsb-status">Clean</div>
-                                    <p class="engine-sub" id="engine-gsb-detail">No threat found</p>
+                                <div class="metric-row">
+                                    <span class="metric-label">Detected Target Brand:</span>
+                                    <span id="ai-detected-brand" class="metric-value" style="font-weight: 500;">-</span>
                                 </div>
-                                <div class="engine-card" id="card-urlhaus">
-                                    <h5>URLHaus</h5>
-                                    <div class="status-pill status-clean" id="engine-urlhaus-status">Clean</div>
-                                    <p class="engine-sub" id="engine-urlhaus-detail">No match</p>
+                                <div class="metric-row">
+                                    <span class="metric-label">Fraud Category:</span>
+                                    <span id="ai-fraud-category" class="metric-value" style="font-weight: 500;">-</span>
                                 </div>
-                                <div class="engine-card" id="card-urlscan">
-                                    <h5>URLScan</h5>
-                                    <div class="status-pill status-clean" id="engine-urlscan-status">Clean</div>
-                                    <p class="engine-sub" id="engine-urlscan-detail">Score: 0</p>
-                                </div>
-                                <div class="engine-card" id="card-abuseipdb">
-                                    <h5>AbuseIPDB</h5>
-                                    <div class="status-pill status-clean" id="engine-abuseipdb-status">Clean</div>
-                                    <p class="engine-sub" id="engine-abuseipdb-detail">Confidence score: 0%</p>
-                                </div>
+                            </div>
+                            <div class="summary-card" style="background: rgba(15, 23, 42, 0.3); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 20px;">
+                                <h5 style="margin-bottom: 8px; font-size: 1.05rem; color: #f472b6;">AI Explanation Summary</h5>
+                                <p id="ai-summary-text" style="line-height: 1.6; color: #cbd5e1; font-size: 1rem;">Analyzing details...</p>
                             </div>
                         </div>
 
-                    </div>
-                </div>
-
-                <div id="dynamic-tab" class="tab-content hidden">
-                    <div class="threat-layout">
-                        <!-- Row 1: Score & Metrics -->
-                        <div class="threat-main-cards">
-                            <div class="score-card" id="dynamic-score-card">
-                                <div class="score-circle">
-                                    <svg viewBox="0 0 36 36" class="circular-chart">
-                                        <path class="circle-bg"
-                                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                        <path class="circle" id="dynamic-score-path" stroke-dasharray="0, 100"
-                                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                        <text x="18" y="20.35" class="percentage" id="dynamic-score-value">0</text>
-                                    </svg>
-                                </div>
-                                <div class="risk-info">
-                                    <h2>Dynamic Risk</h2>
-                                    <h3 id="dynamic-risk-level-text" class="risk-level">Unknown</h3>
-                                    <div class="meta-row">
-                                        <span class="meta-label">Status:</span>
-                                        <span id="dynamic-status" class="meta-value">Pending</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="detail-card">
-                                <h4>Page Load Details</h4>
-                                <div class="metrics-list">
-                                    <div class="metric-row">
-                                        <span class="metric-label">Title:</span>
-                                        <span id="dynamic-page-title" class="metric-value">-</span>
-                                    </div>
-                                    <div class="metric-row">
-                                        <span class="metric-label">Status Code:</span>
-                                        <span id="dynamic-status-code" class="metric-value">-</span>
-                                    </div>
-                                    <div class="metric-row">
-                                        <span class="metric-label">Load Time:</span>
-                                        <span id="dynamic-load-time" class="metric-value">-</span>
-                                    </div>
-                                    <div class="metric-row">
-                                        <span class="metric-label">Final URL:</span>
-                                        <span id="dynamic-final-url" class="metric-value"
-                                            style="word-break: break-all;">-</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Row 2: Explanations & Triggered Signals -->
-                        <div class="threat-main-cards" style="grid-template-columns: 1fr 1fr;">
-                            <div class="detail-card">
-                                <h4>Triggered Signals</h4>
-                                <div class="badge-container" id="dynamic-signals-container"></div>
-                            </div>
-                            <div class="detail-card">
-                                <h4>Analysis Summary</h4>
-                                <div class="summary-bullets" id="dynamic-summary-details"></div>
-                            </div>
-                        </div>
-
-                        <!-- Row 3: Screenshot & Redirect timeline -->
-                        <div class="dynamic-visual-grid">
-                            <div class="detail-card" style="display: flex; flex-direction: column;">
-                                <h4>Visual Evidence (Screenshot)</h4>
-                                <div class="screenshot-container">
-                                    <img id="dynamic-screenshot-img" src="" alt="Page load screenshot"
-                                        class="screenshot-preview hidden" style="cursor: pointer;">
-                                    <div id="dynamic-screenshot-placeholder" class="screenshot-placeholder">
-                                        <span>No Screenshot Captured</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="detail-card">
-                                <h4>Redirection Path</h4>
-                                <div class="timeline" id="dynamic-redirect-chain">
-                                    <div class="timeline-empty">No redirects occurred</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Row 4: DOM & Network Details -->
-                        <div class="dynamic-telemetry-grid">
-                            <div class="detail-card">
-                                <h4>DOM Analysis Findings</h4>
-                                <div class="findings-grid">
-                                    <div class="finding-item">
-                                        <span class="finding-title">Input Forms</span>
-                                        <span id="dom-form-count" class="finding-value">0</span>
-                                        <div class="finding-sub">
-                                            <span id="dom-has-password" class="sub-badge">Password</span>
-                                            <span id="dom-has-otp" class="sub-badge">OTP</span>
-                                            <span id="dom-has-card" class="sub-badge">Credit Card</span>
-                                        </div>
-                                    </div>
-                                    <div class="finding-item">
-                                        <span class="finding-title">Iframes</span>
-                                        <span id="dom-iframe-count" class="finding-value">0</span>
-                                        <div class="finding-sub">
-                                            <span id="dom-hidden-iframes" class="sub-text">0 hidden</span>
-                                        </div>
-                                    </div>
-                                    <div class="finding-item">
-                                        <span class="finding-title">JavaScript Alerts</span>
-                                        <div class="finding-sub" style="margin-top: 10px;">
-                                            <span id="dom-has-eval" class="alert-badge">eval()</span>
-                                            <span id="dom-has-atob" class="alert-badge">atob()</span>
-                                            <span id="dom-has-unescape" class="alert-badge">unescape()</span>
-                                        </div>
-                                    </div>
-                                    <div class="finding-item">
-                                        <span class="finding-title">Meta Redirects</span>
-                                        <span id="dom-has-meta-refresh" class="finding-value">No</span>
-                                        <p id="dom-meta-refresh-target" class="finding-sub-text"
-                                            style="word-break: break-all; font-size: 11px;"></p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="detail-card">
-                                <h4>Network Traffic Telemetry</h4>
-                                <div class="findings-grid">
-                                    <div class="finding-item">
-                                        <span class="finding-title">Total Requests</span>
-                                        <span id="net-request-count" class="finding-value">0</span>
-                                        <div class="finding-sub">
-                                            <span id="net-failed-requests" class="sub-text">0 failed</span>
-                                        </div>
-                                    </div>
-                                    <div class="finding-item">
-                                        <span class="finding-title">Apex Domains</span>
-                                        <span id="net-apex-count" class="finding-value">0</span>
-                                        <div class="finding-sub" id="net-apex-list"
-                                            style="max-height: 80px; overflow-y: auto; font-size: 11px; word-break: break-all;">
-                                        </div>
-                                    </div>
-                                    <div class="finding-item">
-                                        <span class="finding-title">Third-Party Domains</span>
-                                        <span id="net-third-party-count" class="finding-value">0</span>
-                                        <div class="finding-sub" id="net-third-party-list"
-                                            style="max-height: 80px; overflow-y: auto; font-size: 11px; word-break: break-all;">
-                                        </div>
-                                    </div>
-                                    <div class="finding-item">
-                                        <span class="finding-title">CDN Usage</span>
-                                        <span id="net-cdn-count" class="finding-value">0</span>
-                                        <div class="finding-sub" id="net-cdn-list"
-                                            style="max-height: 80px; overflow-y: auto; font-size: 11px; word-break: break-all;">
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
-
-                <div id="ai-tab" class="tab-content hidden">
-                    <div class="threat-layout">
-                        <!-- Row 1: AI Score & Verdict Details -->
-                        <div class="threat-main-cards">
-                            <div class="score-card" id="ai-score-card">
-                                <div class="score-circle">
-                                    <svg viewBox="0 0 36 36" class="circular-chart">
-                                        <path class="circle-bg"
-                                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                        <path class="circle" id="ai-score-path" stroke-dasharray="0, 100"
-                                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                        <text x="18" y="20.35" class="percentage" id="ai-score-value">0</text>
-                                    </svg>
-                                </div>
-                                <div class="risk-info">
-                                    <h2>AI Risk Score</h2>
-                                    <h3 id="ai-risk-level-text" class="risk-level">Unknown</h3>
-                                    <div class="meta-row">
-                                        <span class="meta-label">Verdict:</span>
-                                        <span id="ai-action-badge" class="status-pill status-clean">ALLOW</span>
-                                    </div>
-                                    <div class="meta-row">
-                                        <span class="meta-label">Confidence:</span>
-                                        <span id="ai-confidence-value" class="meta-value">-</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="detail-card">
-                                <h4>LLM Analysis Insights</h4>
-                                <div class="metrics-list">
-                                    <div class="metric-row">
-                                        <span class="metric-label">Website Purpose:</span>
-                                        <span id="ai-website-purpose" class="metric-value">-</span>
-                                    </div>
-                                    <div class="metric-row">
-                                        <span class="metric-label">Detected Brand:</span>
-                                        <span id="ai-detected-brand" class="metric-value">-</span>
-                                    </div>
-                                    <div class="metric-row">
-                                        <span class="metric-label">Fraud Category:</span>
-                                        <span id="ai-fraud-category" class="metric-value">-</span>
-                                    </div>
-                                    <div class="metric-row">
-                                        <span class="metric-label">Brand Confidence:</span>
-                                        <span id="ai-brand-confidence" class="metric-value">-</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Row 2: Bullet Lists for Reasoning & Telemetry Findings -->
-                        <div class="threat-main-cards" style="grid-template-columns: 1fr 1fr;">
-                            <div class="detail-card">
-                                <h4>Reasoning Steps</h4>
-                                <div class="summary-bullets" id="ai-reasoning-details">
-                                    <div class="bullet-item">No reasoning telemetry compiled.</div>
-                                </div>
-                            </div>
-                            <div class="detail-card">
-                                <h4>Analytical Findings</h4>
-                                <div class="summary-bullets" id="ai-findings-details">
-                                    <div class="bullet-item">No indicators generated.</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Row 3: Generated Security Signals Table -->
+                        <!-- AI Reasoning Steps -->
                         <div class="detail-card">
-                            <h4>Triggered AI Security Signals</h4>
-                            <div id="ai-signals-container" style="margin-top: 10px;">
-                                <div class="badge-container" id="ai-signals-badge-container">
-                                    <span class="no-signals">No indicators reported.</span>
-                                </div>
+                            <h4 style="font-size: 1.2rem; color: #60a5fa; margin-bottom: 12px;">AI Analytical Findings & Reasoning</h4>
+                            <div class="summary-bullets" id="ai-findings-details">
+                                <div class="bullet-item">No findings loaded.</div>
                             </div>
                         </div>
 
-                        <!-- Row 4: Prompt Copy-Paste Testing Panel -->
-                        <div class="detail-card prompt-testing-card"
-                            style="border: 1px dashed rgba(255, 255, 255, 0.15); background: rgba(15, 23, 42, 0.45);">
-                            <h4 style="color: #60a5fa; display: flex; align-items: center; gap: 8px;">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                                    style="color: #60a5fa;">
-                                    <rect width="8" height="4" x="8" y="2" rx="1" ry="1" />
-                                    <path
-                                        d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
-                                </svg>
-                                Prompt Engineering Copy-Paste Panel
-                            </h4>
-                            <p
-                                style="font-size: 13px; color: var(--text-muted); margin: 8px 0 16px 0; line-height: 1.5;">
-                                Copy the compiled prompts below to paste directly into the <strong>Gemini Web
-                                    Interface</strong>. Use this test cycle to manually evaluate hallucinations
-                                containment, JSON stability, prompt injection block, and casing consistency.
-                            </p>
-
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
-                                <div class="prompt-box">
-                                    <div
-                                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                                        <span style="font-size: 12px; font-weight: 600; color: #a78bfa;">SYSTEM
-                                            PROMPT</span>
-                                        <button class="copy-btn" id="copy-sys-btn"
-                                            style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: white; padding: 3px 8px; font-size: 11px; cursor: pointer; transition: all 0.2s;">Copy</button>
-                                    </div>
-                                    <textarea id="sys-prompt-text"
-                                        style="width: 100%; height: 160px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #cbd5e1; font-family: monospace; font-size: 11px; padding: 10px; resize: none;"
-                                        readonly>System prompt will generate after analysis...</textarea>
-                                </div>
-
-                                <div class="prompt-box">
-                                    <div
-                                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                                        <span style="font-size: 12px; font-weight: 600; color: #f472b6;">USER
-                                            PROMPT</span>
-                                        <button class="copy-btn" id="copy-user-btn"
-                                            style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: white; padding: 3px 8px; font-size: 11px; cursor: pointer; transition: all 0.2s;">Copy</button>
-                                    </div>
-                                    <textarea id="user-prompt-text"
-                                        style="width: 100%; height: 160px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: #cbd5e1; font-family: monospace; font-size: 11px; padding: 10px; resize: none;"
-                                        readonly>User prompt will generate after analysis...</textarea>
-                                </div>
-                            </div>
-                        </div>
                     </div>
-                </div>
 
+                    <!-- Right Column: Screenshot, Evidence & DB Provider Hits -->
+                    <div class="details-right-col" style="display: flex; flex-direction: column; gap: 24px;">
+                        
+                        <!-- Visual Evidence (Screenshot) -->
+                        <div class="detail-card" style="display: flex; flex-direction: column;">
+                            <h4 style="font-size: 1.2rem; color: #fb7185; margin-bottom: 12px;">Visual Screenshot Evidence</h4>
+                            <div class="screenshot-container" style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; min-height: 200px; position: relative;">
+                                <img id="dynamic-screenshot-img" src="" alt="Page screenshot"
+                                    class="screenshot-preview hidden" style="width: 100%; height: auto; max-height: 350px; object-fit: contain; cursor: pointer;">
+                                <div id="dynamic-screenshot-placeholder" class="screenshot-placeholder" style="padding: 30px; text-align: center; color: var(--text-muted); font-size: 0.95rem;">
+                                    <svg viewBox="0 0 24 24" width="36" height="36" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="margin: 0 auto 10px auto; opacity: 0.6;">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                        <polyline points="21 15 16 10 5 21"></polyline>
+                                    </svg>
+                                    <span id="screenshot-status-text">No Screenshot Captured</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Suspicious Indicators / Evidence -->
+                        <div class="detail-card">
+                            <h4 style="font-size: 1.2rem; color: #fbbf24; margin-bottom: 12px;">Evidence & Triggered Indicators</h4>
+                            <div class="badge-container" id="triggered-signals-container" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;">
+                                <span class="no-signals" style="color: var(--text-muted); font-size: 0.95rem;">No security indicators triggered.</span>
+                            </div>
+                        </div>
+
+                        <!-- Database Provider Verdicts -->
+                        <div class="detail-card">
+                            <h4 style="font-size: 1.2rem; color: #34d399; margin-bottom: 15px;">Threat Database Verification Results</h4>
+                            <div class="engines-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                <div class="engine-card" id="card-vt" style="padding: 12px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
+                                    <h5 style="margin-bottom: 6px; font-size: 0.95rem;">VirusTotal</h5>
+                                    <div class="status-pill status-clean" id="engine-vt-status" style="font-size: 0.8rem; padding: 2px 6px;">Clean</div>
+                                    <p class="engine-sub" id="engine-vt-detail" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">0 engines hit</p>
+                                </div>
+                                <div class="engine-card" id="card-gsb" style="padding: 12px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
+                                    <h5 style="margin-bottom: 6px; font-size: 0.95rem;">Google Safe Browsing</h5>
+                                    <div class="status-pill status-clean" id="engine-gsb-status" style="font-size: 0.8rem; padding: 2px 6px;">Clean</div>
+                                    <p class="engine-sub" id="engine-gsb-detail" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">No match found</p>
+                                </div>
+                                <div class="engine-card" id="card-urlhaus" style="padding: 12px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
+                                    <h5 style="margin-bottom: 6px; font-size: 0.95rem;">URLHaus</h5>
+                                    <div class="status-pill status-clean" id="engine-urlhaus-status" style="font-size: 0.8rem; padding: 2px 6px;">Clean</div>
+                                    <p class="engine-sub" id="engine-urlhaus-detail" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">No malware index</p>
+                                </div>
+                                <div class="engine-card" id="card-urlscan" style="padding: 12px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
+                                    <h5 style="margin-bottom: 6px; font-size: 0.95rem;">URLScan</h5>
+                                    <div class="status-pill status-clean" id="engine-urlscan-status" style="font-size: 0.8rem; padding: 2px 6px;">Clean</div>
+                                    <p class="engine-sub" id="engine-urlscan-detail" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Score: 0</p>
+                                </div>
+                                <div class="engine-card" id="card-abuseipdb" style="padding: 12px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
+                                    <h5 style="margin-bottom: 6px; font-size: 0.95rem;">AbuseIPDB</h5>
+                                    <div class="status-pill status-clean" id="engine-abuseipdb-status" style="font-size: 0.8rem; padding: 2px 6px;">Clean</div>
+                                    <p class="engine-sub" id="engine-abuseipdb-detail" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Confidence: 0%</p>
+                                </div>
+                                <div class="engine-card" id="card-phishtank" style="padding: 12px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
+                                    <h5 style="margin-bottom: 6px; font-size: 0.95rem;">PhishTank</h5>
+                                    <div class="status-pill status-clean" id="engine-phishtank-status" style="font-size: 0.8rem; padding: 2px 6px;">Clean</div>
+                                    <p class="engine-sub" id="engine-phishtank-detail" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">No match found</p>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
             </section>
         </main>
     </div>
