@@ -75,6 +75,34 @@ def test_router_scenarios():
     assert visited4[3] == NodeName.MERGE
     assert visited4[4:] == [NodeName.AI, NodeName.REPORT, NodeName.STORE]
 
+    # SCENARIO 5: Error Policy Decisions Verification
+    print("\n--- SCENARIO 5: Error Policy Decisions Verification ---")
+    from src.agents.error import error_policy, ErrorAction
+    
+    # 1. Validation error at VALIDATE node -> STOP
+    d1 = error_policy.handle("Invalid URL Format", NodeName.VALIDATE, 0, False)
+    print(f"Validate node format error: category={d1.error_type}, action={d1.action}")
+    assert d1.action == ErrorAction.STOP
+    assert d1.error_type == "ValidationError"
+
+    # 2. Timeout error in DYNAMIC node under retry limit -> RETRY
+    d2 = error_policy.handle("Request timed out after 30s", NodeName.DYNAMIC, 1, True)
+    print(f"Dynamic node transient timeout: category={d2.error_type}, action={d2.action}")
+    assert d2.action == ErrorAction.RETRY
+    assert d2.error_type == "TimeoutError"
+
+    # 3. Rate limit error in DYNAMIC node exceeding retry limit -> CONTINUE
+    d3 = error_policy.handle("429 Too Many Requests", NodeName.DYNAMIC, 3, True)
+    print(f"Dynamic node rate limit exceeded retry limit: category={d3.error_type}, action={d3.action}")
+    assert d3.action == ErrorAction.CONTINUE
+    assert d3.error_type == "RateLimitError"
+
+    # 4. Network error in AI node exceeding retry limit -> CONTINUE (graceful bypass)
+    d4 = error_policy.handle("DNS resolution failed", NodeName.AI, 3, True)
+    print(f"AI node connection error: category={d4.error_type}, action={d4.action}")
+    assert d4.action == ErrorAction.CONTINUE
+    assert d4.error_type == "NetworkError"
+
     print("\n=== ALL SCENARIOS VERIFIED SUCCESSFULLY! ===")
 
 if __name__ == "__main__":

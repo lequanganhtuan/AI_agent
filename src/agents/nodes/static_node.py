@@ -2,6 +2,7 @@ import logging
 from datetime import datetime
 from src.agents.state import URLAnalysisState, NodeName, ExecutionStatus, AgentError
 from src.agents.tools import tool_registry
+from src.agents.error import error_policy, ErrorAction
 
 logger = logging.getLogger(__name__)
 
@@ -22,17 +23,24 @@ def static_node(state: URLAnalysisState) -> URLAnalysisState:
         state.analysis.static = result.data
         state.workflow.completed_nodes.append(NodeName.STATIC)
     else:
-        state.control.should_stop = True
-        state.workflow.status = ExecutionStatus.FAILED
+        err_msg = result.error or "Unknown StaticTool failure"
+        decision = error_policy.handle(err_msg, NodeName.STATIC, 0, result.retryable)
         
+        state.control.should_stop = (decision.action == ErrorAction.STOP)
+        if decision.action == ErrorAction.STOP:
+            state.workflow.status = ExecutionStatus.FAILED
+            
         err = AgentError(
             node=str(NodeName.STATIC),
             tool="StaticTool",
-            message=result.error or "Unknown StaticTool failure",
+            message=err_msg,
             exception_type="ToolExecutionError",
             timestamp=datetime.utcnow(),
-            retryable=result.retryable
+            retryable=result.retryable,
+            error_type=decision.error_type,
+            action_taken=str(decision.action)
         )
         state.telemetry.errors.append(err)
+        state.telemetry.warnings.append(f"Static node failed and continued: {err_msg}")
         
     return state

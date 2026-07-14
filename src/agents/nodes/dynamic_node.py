@@ -2,6 +2,7 @@ import logging
 from datetime import datetime
 from src.agents.state import URLAnalysisState, NodeName, ExecutionStatus, AgentError
 from src.agents.tools import tool_registry
+from src.agents.error import error_policy, ErrorAction
 
 logger = logging.getLogger(__name__)
 
@@ -23,23 +24,29 @@ def dynamic_node(state: URLAnalysisState) -> URLAnalysisState:
         state.control.should_retry = False
         state.workflow.completed_nodes.append(NodeName.DYNAMIC)
     else:
-        # Check retry limit (max 3 attempts)
-        max_retries = 3
-        if result.retryable and state.execution.retry_count < max_retries:
+        err_msg = result.error or "Unknown DynamicTool failure"
+        decision = error_policy.handle(err_msg, NodeName.DYNAMIC, state.execution.retry_count, result.retryable)
+        
+        state.control.should_stop = (decision.action == ErrorAction.STOP)
+        state.control.should_retry = (decision.action == ErrorAction.RETRY)
+        
+        if decision.action == ErrorAction.STOP:
+            state.workflow.status = ExecutionStatus.FAILED
+        elif decision.action == ErrorAction.RETRY:
             state.execution.retry_count += 1
-            state.control.should_retry = True
-            logger.warning(f"DynamicTool failed. Registering retry attempt {state.execution.retry_count}/{max_retries}")
-        else:
-            state.control.should_retry = False
-            err = AgentError(
-                node=str(NodeName.DYNAMIC),
-                tool="DynamicTool",
-                message=result.error or "DynamicTool failed after max retries",
-                exception_type="ToolExecutionError",
-                timestamp=datetime.utcnow(),
-                retryable=result.retryable
-            )
-            state.telemetry.errors.append(err)
-            state.telemetry.warnings.append(f"Dynamic analysis failed and fallback was triggered: {result.error}")
+            logger.warning(f"DynamicTool retry scheduled. Attempt {state.execution.retry_count}")
             
+        err = AgentError(
+            node=str(NodeName.DYNAMIC),
+            tool="DynamicTool",
+            message=err_msg,
+            exception_type="ToolExecutionError",
+            timestamp=datetime.utcnow(),
+            retryable=result.retryable,
+            error_type=decision.error_type,
+            action_taken=str(decision.action)
+        )
+        state.telemetry.errors.append(err)
+        state.telemetry.warnings.append(f"Dynamic node error handled with {decision.action}: {err_msg}")
+        
     return state

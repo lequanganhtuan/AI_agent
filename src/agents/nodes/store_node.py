@@ -2,6 +2,7 @@ import logging
 from datetime import datetime
 from src.agents.state import URLAnalysisState, NodeName, ExecutionStatus, AgentError
 from src.agents.tools import tool_registry
+from src.agents.error import error_policy, ErrorAction
 
 logger = logging.getLogger(__name__)
 
@@ -26,17 +27,24 @@ def store_node(state: URLAnalysisState) -> URLAnalysisState:
             delta = state.execution.finished_at - state.execution.started_at
             state.execution.duration = delta.total_seconds()
     else:
-        state.control.should_stop = True
-        state.workflow.status = ExecutionStatus.FAILED
+        err_msg = result.error or "Unknown StoreTool failure"
+        decision = error_policy.handle(err_msg, NodeName.STORE, 0, result.retryable)
         
+        state.control.should_stop = (decision.action == ErrorAction.STOP)
+        if decision.action == ErrorAction.STOP:
+            state.workflow.status = ExecutionStatus.FAILED
+            
         err = AgentError(
             node=str(NodeName.STORE),
             tool="StoreTool",
-            message=result.error or "Unknown StoreTool failure",
+            message=err_msg,
             exception_type="ToolExecutionError",
             timestamp=datetime.utcnow(),
-            retryable=result.retryable
+            retryable=result.retryable,
+            error_type=decision.error_type,
+            action_taken=str(decision.action)
         )
         state.telemetry.errors.append(err)
+        state.telemetry.warnings.append(f"StoreNode failed and handled with {decision.action}: {err_msg}")
         
     return state

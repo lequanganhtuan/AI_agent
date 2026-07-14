@@ -8,6 +8,8 @@ class AgentError(BaseModel):
     exception_type: str
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     retryable: bool
+    error_type: str | None = None
+    action_taken: str | None = None
 
 class TelemetryState(BaseModel):
     errors: list[AgentError] = Field(default_factory=list)
