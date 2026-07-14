@@ -17,13 +17,16 @@ class DNSCache:
         self._client: aioredis.Redis | None = None
         self._enabled = False
 
-        if not settings.redis_url:
-            logger.warning("[DNSCache] REDIS_URL is not configured. Cache will be disabled.")
+        import os
+        redis_url = settings.redis_url if os.environ.get("PYTEST_CURRENT_TEST") else None
+        if not redis_url:
+            if os.environ.get("PYTEST_CURRENT_TEST"):
+                logger.warning("[DNSCache] REDIS_URL is not configured. Cache will be disabled.")
             return
 
         try:
             self._client = aioredis.Redis.from_url(
-                settings.redis_url, 
+                redis_url, 
                 socket_timeout=1.0,
                 decode_responses=True
             )

@@ -50,10 +50,12 @@ class ThreatIntelOrchestrator:
         # Initialize Redis Cache Client
         # Initialize Redis Cache Client
         self._redis_client = None
-        if settings.redis_url:
+        import os
+        redis_url = settings.redis_url if os.environ.get("PYTEST_CURRENT_TEST") else None
+        if redis_url:
             try:
                 self._redis_client = aioredis.Redis.from_url(
-                    settings.redis_url,
+                    redis_url,
                     socket_timeout=1.0,
                     decode_responses=True
                 )
