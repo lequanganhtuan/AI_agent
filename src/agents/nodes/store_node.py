@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 from src.agents.state import URLAnalysisState, NodeName, ExecutionStatus, AgentError
-from src.agents.tools.store_tool import StoreTool
+from src.agents.tools import tool_registry
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +13,7 @@ def store_node(state: URLAnalysisState) -> URLAnalysisState:
     state.workflow.current_node = NodeName.STORE
     state.workflow.visited_nodes.append(NodeName.STORE)
     
-    tool = StoreTool()
+    tool = tool_registry.get(NodeName.STORE)
     result = tool.run(state)
     
     state.telemetry.node_timings[str(NodeName.STORE)] = result.duration

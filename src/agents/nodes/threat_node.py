@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 from src.agents.state import URLAnalysisState, NodeName, ExecutionStatus, AgentError
-from src.agents.tools.threat_tool import ThreatTool
+from src.agents.tools import tool_registry
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +13,7 @@ def threat_node(state: URLAnalysisState) -> URLAnalysisState:
     state.workflow.current_node = NodeName.THREAT
     state.workflow.visited_nodes.append(NodeName.THREAT)
     
-    tool = ThreatTool()
+    tool = tool_registry.get(NodeName.THREAT)
     result = tool.run(state)
     
     state.telemetry.node_timings[str(NodeName.THREAT)] = result.duration

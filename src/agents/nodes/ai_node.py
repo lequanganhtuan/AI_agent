@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 from src.agents.state import URLAnalysisState, NodeName, ExecutionStatus, AgentError
-from src.agents.tools.ai_tool import AITool
+from src.agents.tools import tool_registry
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +13,7 @@ def ai_node(state: URLAnalysisState) -> URLAnalysisState:
     state.workflow.current_node = NodeName.AI
     state.workflow.visited_nodes.append(NodeName.AI)
     
-    tool = AITool()
+    tool = tool_registry.get(NodeName.AI)
     result = tool.run(state)
     
     state.telemetry.node_timings[str(NodeName.AI)] = result.duration

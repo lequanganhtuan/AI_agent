@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 from src.agents.state import URLAnalysisState, NodeName, ExecutionStatus, AgentError
-from src.agents.tools.dynamic_tool import DynamicTool
+from src.agents.tools import tool_registry
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +13,7 @@ def dynamic_node(state: URLAnalysisState) -> URLAnalysisState:
     state.workflow.current_node = NodeName.DYNAMIC
     state.workflow.visited_nodes.append(NodeName.DYNAMIC)
     
-    tool = DynamicTool()
+    tool = tool_registry.get(NodeName.DYNAMIC)
     result = tool.run(state)
     
     state.telemetry.node_timings[str(NodeName.DYNAMIC)] = result.duration

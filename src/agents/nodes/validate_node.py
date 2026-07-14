@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 from src.agents.state import URLAnalysisState, NodeName, ExecutionStatus, AgentError
-from src.agents.tools.validate_tool import ValidateTool
+from src.agents.tools import tool_registry
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +10,7 @@ def validate_node(state: URLAnalysisState) -> URLAnalysisState:
     state.workflow.current_node = NodeName.VALIDATE
     state.workflow.visited_nodes.append(NodeName.VALIDATE)
     
-    tool = ValidateTool()
+    tool = tool_registry.get(NodeName.VALIDATE)
     result = tool.run(state)
     
     # Store performance timing
