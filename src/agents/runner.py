@@ -78,8 +78,8 @@ class AgentRunner:
         return final_state
 
     @staticmethod
-    def print_execution_summary(state: URLAnalysisState) -> None:
-        """Outputs a cleanly formatted summary box of the workflow execution metrics."""
+    def print_execution_summary(state: URLAnalysisState) -> str:
+        """Returns a cleanly formatted summary box of the workflow execution metrics and logs it."""
         summary = f"""
 ========================================
            Execution Summary            
@@ -93,4 +93,6 @@ Warnings:        {len(state.telemetry.warnings)}
 Status:          {state.workflow.status.value}
 ========================================
 """
-        print(summary)
+        logger.info(summary)
+        return summary
+

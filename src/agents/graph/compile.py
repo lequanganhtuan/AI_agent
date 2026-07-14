@@ -31,18 +31,5 @@ def _export_graph_visualization(compiled: Any):
         with open("artifacts/graph_skeleton.png", "wb") as f:
             f.write(png_bytes)
         logger.info("Saved graph visualization to artifacts/graph_skeleton.png")
-        
-        # 3. Draw graph SVG via mermaid.ink
-        import base64
-        import requests
-        try:
-            payload = base64.b64encode(mermaid_code.encode("utf-8")).decode("ascii")
-            response = requests.get(f"https://mermaid.ink/svg/{payload}", timeout=10)
-            if response.status_code == 200:
-                with open("artifacts/graph_skeleton.svg", "wb") as f:
-                    f.write(response.content)
-                logger.info("Saved graph SVG visualization to artifacts/graph_skeleton.svg")
-        except Exception as svge:
-            logger.warning(f"Could not render SVG visualization: {str(svge)}")
     except Exception as e:
         logger.warning(f"Could not render graph visualization image (possibly missing Graphviz): {str(e)}")
