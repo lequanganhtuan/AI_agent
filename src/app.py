@@ -332,17 +332,13 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
             return report
 
         url_analyzer = URLAnalyzer()
-        static_analyzer = StaticURLAnalyzer()
-        orchestrator = ThreatIntelOrchestrator()
         
-        # 1. Preprocessing
+        # 1. Preprocessing and cache lookup
         validation_result = url_analyzer.analyze(req.url)
         
         if not validation_result.valid:
-            # If validation fails, return an error
             raise HTTPException(status_code=400, detail=validation_result.error_message or "URL validation failed.")
             
-        # Caching check
         cache_key = validation_result.cache_key
         if cache_key:
             cached_report = await cache.get(cache_key)
@@ -350,54 +346,31 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
                 logger.info(f"Returning cached FraudReport for URL: {req.url}")
                 return cached_report
 
-        # 2. Parallel execution of Static Analysis (Phase 2) and Threat Intelligence (Phase 3)
-        static_task = asyncio.to_thread(static_analyzer.analyze, validation_result)
-        threat_task = orchestrator.analyze_url(validation_result)
+        # 2. Invoke the E2E LangGraph Orchestrator
+        from src.agents.runner import AgentRunner
+        from src.agents.state import ExecutionStatus
         
-        static_result, threat_intel_result = await asyncio.gather(static_task, threat_task)
+        runner = AgentRunner()
+        # Run graph in an async executor thread to keep FastAPI completely responsive
+        state = await asyncio.to_thread(runner.run, req.url)
         
-        # Construct base context
-        context = AnalysisContext(
-            validation=validation_result,
-            static=static_result,
-            threat_intel=threat_intel_result
-        )
-
-        # 3. Sequential trigger of Dynamic Analysis (Phase 4)
-        from src.analyzers.url.dynamic_analysis.orchestrator import DynamicAnalysisOrchestrator
-        dynamic_orchestrator = DynamicAnalysisOrchestrator()
-        
-        def run_dynamic_in_thread(ctx):
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            if sys.platform == 'win32':
-                asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-            try:
-                loop.run_until_complete(dynamic_orchestrator.analyze(ctx))
-            finally:
-                loop.close()
-
-        await asyncio.to_thread(run_dynamic_in_thread, context)
-        
-        # 4. Sequential trigger of AI Content Analysis (Phase 5)
-        from src.analyzers.url.ai_content_analysis.orchestrator import AIContentAnalysisOrchestrator
-        ai_orchestrator = AIContentAnalysisOrchestrator()
-        await ai_orchestrator.analyze(context)
-        
-        # Convert to decoupled FraudReport Pydantic representation
-        report = ReportBuilder.build(context)
-        
-        # Caching set
-        if cache_key:
-            await cache.set(cache_key, report, ttl=settings.cache_ttl)
-        # Also cache by report ID (UUID) for fast history/details lookup fallback
-        await cache.set(report.id, report, ttl=settings.cache_ttl)
+        if state.workflow.status == ExecutionStatus.FAILED and not state.report:
+            err_msg = state.telemetry.errors[-1].message if state.telemetry.errors else "Unknown workflow failure"
+            raise HTTPException(status_code=400, detail=err_msg)
             
-        # Persist to database in background
-        background_tasks.add_task(persist_report_data, report)
+        report = state.report
         
+        # 3. Cache result and schedule background Firestore persistence
+        if report:
+            if cache_key:
+                await cache.set(cache_key, report, ttl=settings.cache_ttl)
+            await cache.set(report.id, report, ttl=settings.cache_ttl)
+            background_tasks.add_task(persist_report_data, report)
+            
         return report
         
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         traceback.print_exc()
