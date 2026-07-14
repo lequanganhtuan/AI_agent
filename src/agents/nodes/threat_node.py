@@ -21,6 +21,14 @@ def threat_node(state: URLAnalysisState) -> URLAnalysisState:
     if result.success:
         state.analysis.threat_intelligence = result.data
         state.workflow.completed_nodes.append(NodeName.THREAT)
+        
+        # Update should_skip_dynamic flag if risk level is high or score is high
+        if result.data and result.data.risk:
+            if result.data.risk.risk_level.upper() in ("HIGH", "CRITICAL", "MALICIOUS") or result.data.risk.score >= 70:
+                state.control.should_skip_dynamic = True
+                logger.info("Threat intelligence detected high risk. Setting should_skip_dynamic = True")
+            else:
+                state.control.should_skip_dynamic = False
     else:
         state.control.should_stop = True
         state.workflow.status = ExecutionStatus.FAILED

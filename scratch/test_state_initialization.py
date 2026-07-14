@@ -57,11 +57,11 @@ def test_router_scenarios():
 
     # SCENARIO 4: High Threat Skip Dynamic Flow
     print("\n--- SCENARIO 4: High Threat Skip Dynamic Flow ---")
-    state4 = create_initial_state("https://google.com")
-    state4.control.should_skip_dynamic = True
+    state4 = create_initial_state("https://phishing-domain.com")
     final_state4_raw = graph.invoke(state4)
     final_state4 = URLAnalysisState.model_validate(final_state4_raw) if isinstance(final_state4_raw, dict) else final_state4_raw
     print(f"Visited Nodes: {final_state4.workflow.visited_nodes}")
+    print(f"should_skip_dynamic value resolved by threat_node: {final_state4.control.should_skip_dynamic}")
     print(f"Status: {final_state4.workflow.status}")
     assert final_state4.workflow.status == ExecutionStatus.SUCCESS
     # Should bypass dynamic node
