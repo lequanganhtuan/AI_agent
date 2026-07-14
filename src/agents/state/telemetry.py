@@ -19,3 +19,7 @@ class TelemetryState(BaseModel):
     checkpoint_saved: bool = False
     checkpoint_id: str | None = None
     checkpoint_time: datetime | None = None
+    total_nodes: int = 0
+    successful_nodes: int = 0
+    failed_nodes: int = 0
+    skipped_nodes: int = 0
