@@ -20,8 +20,53 @@ from src.core.database import FirestoreRepository
 from src.core.report.builder import ReportBuilder
 from src.core.settings import settings
 
+# Custom clean logging format setup for developer readability
+class CleanFormatter(logging.Formatter):
+    def format(self, record):
+        levelname = record.levelname
+        name = record.name.split(".")[-1]
+        
+        # Visual color codes (ANSI styling)
+        BLUE = "\033[94m"
+        CYAN = "\033[96m"
+        GREEN = "\033[92m"
+        YELLOW = "\033[93m"
+        RED = "\033[91m"
+        BOLD = "\033[1m"
+        RESET = "\033[0m"
+        
+        msg = record.getMessage()
+        
+        # Colorize logs dynamically based on content or level
+        if "Workflow Complete" in msg or "Execution Summary" in msg:
+            formatted_msg = f"\n{BOLD}{BLUE}{msg}{RESET}\n"
+        elif "Starting Agent" in msg:
+            formatted_msg = f"\n{BOLD}{BLUE}{msg}{RESET}"
+        elif "Executing" in msg:
+            formatted_msg = f"{CYAN}➔ {msg}{RESET}"
+        elif "Saved checkpoint" in msg:
+            formatted_msg = f"{GREEN}✓ {msg}{RESET}"
+        elif levelname == "WARNING":
+            formatted_msg = f"{YELLOW}⚠ {msg}{RESET}"
+        elif levelname == "ERROR" or levelname == "CRITICAL":
+            formatted_msg = f"{RED}✗ {msg}{RESET}"
+        else:
+            formatted_msg = msg
+            
+        record.msg = formatted_msg
+        time_str = self.formatTime(record, "%H:%M:%S")
+        return f"{time_str} [{levelname}] [{name}]: {formatted_msg}"
+
+# Configure root logger with the CleanFormatter
+root_logger = logging.getLogger()
+for h in list(root_logger.handlers):
+    root_logger.removeHandler(h)
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(CleanFormatter())
+root_logger.addHandler(stream_handler)
+root_logger.setLevel(logging.INFO)
+
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="URL Analyzer Web Demo")
 
@@ -33,6 +78,15 @@ async def persist_report_data(report):
         await db_repo.save_report(report)
     except Exception as db_err:
         logger.error(f"Failed to persist FraudReport to Firestore: {str(db_err)}")
+
+async def cache_and_persist_background(cache_key: str | None, report_id: str, report):
+    try:
+        if cache_key:
+            await cache.set(cache_key, report, ttl=settings.cache_ttl)
+        await cache.set(report_id, report, ttl=settings.cache_ttl)
+    except Exception as cache_err:
+        logger.error(f"Failed to set report cache in background: {str(cache_err)}")
+    await persist_report_data(report)
 
 # Determine the absolute path to the static folder
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -51,6 +105,7 @@ app.mount("/artifacts", StaticFiles(directory=artifacts_dir), name="artifacts")
 
 class AnalyzeRequest(BaseModel):
     url: str
+    language: str = "vi"
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
@@ -323,17 +378,16 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
             )
             report = ReportBuilder.build(context)
             
-            # Persist mock report to cache (by ID and Cache Key) and to Database in background
-            await cache.set(report.id, report, ttl=settings.cache_ttl)
-            if val_res.cache_key:
-                await cache.set(val_res.cache_key, report, ttl=settings.cache_ttl)
-            
-            background_tasks.add_task(persist_report_data, report)
+            # Persist mock report to cache (by ID and Cache Key) and to Database in background via BackgroundTasks
+            background_tasks.add_task(
+                cache_and_persist_background,
+                val_res.cache_key,
+                report.id,
+                report
+            )
             return report
 
         url_analyzer = URLAnalyzer()
-        static_analyzer = StaticURLAnalyzer()
-        orchestrator = ThreatIntelOrchestrator()
         
         # 1. Preprocessing
         validation_result = url_analyzer.analyze(req.url)
@@ -350,51 +404,28 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
                 logger.info(f"Returning cached FraudReport for URL: {req.url}")
                 return cached_report
 
-        # 2. Parallel execution of Static Analysis (Phase 2) and Threat Intelligence (Phase 3)
-        static_task = asyncio.to_thread(static_analyzer.analyze, validation_result)
-        threat_task = orchestrator.analyze_url(validation_result)
-        
-        static_result, threat_intel_result = await asyncio.gather(static_task, threat_task)
-        
-        # Construct base context
-        context = AnalysisContext(
-            validation=validation_result,
-            static=static_result,
-            threat_intel=threat_intel_result
-        )
+        # 2. Run the agent workflow
+        from src.agents.runner import AgentRunner
+        from src.agents.state import ExecutionStatus
 
-        # 3. Sequential trigger of Dynamic Analysis (Phase 4)
-        from src.analyzers.url.dynamic_analysis.orchestrator import DynamicAnalysisOrchestrator
-        dynamic_orchestrator = DynamicAnalysisOrchestrator()
+        runner = AgentRunner()
+        state = await runner.run_async(req.url)
         
-        def run_dynamic_in_thread(ctx):
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            if sys.platform == 'win32':
-                asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-            try:
-                loop.run_until_complete(dynamic_orchestrator.analyze(ctx))
-            finally:
-                loop.close()
-
-        await asyncio.to_thread(run_dynamic_in_thread, context)
-        
-        # 4. Sequential trigger of AI Content Analysis (Phase 5)
-        from src.analyzers.url.ai_content_analysis.orchestrator import AIContentAnalysisOrchestrator
-        ai_orchestrator = AIContentAnalysisOrchestrator()
-        await ai_orchestrator.analyze(context)
-        
-        # Convert to decoupled FraudReport Pydantic representation
-        report = ReportBuilder.build(context)
-        
-        # Caching set
-        if cache_key:
-            await cache.set(cache_key, report, ttl=settings.cache_ttl)
-        # Also cache by report ID (UUID) for fast history/details lookup fallback
-        await cache.set(report.id, report, ttl=settings.cache_ttl)
+        if state.workflow.status == ExecutionStatus.FAILED:
+            error_msg = state.telemetry.errors[-1].message if state.telemetry.errors else "Unknown agent execution error"
+            raise HTTPException(status_code=500, detail=f"Agent workflow failed: {error_msg}")
             
-        # Persist to database in background
-        background_tasks.add_task(persist_report_data, report)
+        report = state.report
+        if not report:
+            raise HTTPException(status_code=500, detail="Agent workflow finished without generating a report.")
+
+        # Delegate caching and database persistence to FastAPI BackgroundTasks to optimize response latency
+        background_tasks.add_task(
+            cache_and_persist_background,
+            cache_key,
+            report.id,
+            report
+        )
         
         return report
         

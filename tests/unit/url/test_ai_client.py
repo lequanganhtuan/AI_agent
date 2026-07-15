@@ -145,7 +145,7 @@ class TestGeminiClientPayload:
         # Extract binary data mapping from the part object
         part = kwargs["contents"][1]
         assert part.inline_data.data == b"base64payload"
-        assert part.inline_data.mime_type == "image/png"
+        assert part.inline_data.mime_type == "image/jpeg"
 
 
 # ─── Gemini Client Error Handling & Translation Tests ─────────────────────────
@@ -260,13 +260,13 @@ class TestGeminiClientErrorHandling:
         async def mock_generate_content(model, contents, config):
             nonlocal call_count
             call_count += 1
-            if model == "gemini-2.5-flash":
+            if model == "gemini-2.5-flash-lite":
                 raise APIError(
                     code=429,
                     response_json={'error': {'message': 'RESOURCE_EXHAUSTED'}},
                     response=MagicMock()
                 )
-            elif model == "gemini-2.5-flash-lite":
+            elif model == "gemini-2.5-flash":
                 mock_resp = MagicMock()
                 mock_resp.text = "Backup Success"
                 mock_resp.usage_metadata = None

@@ -294,6 +294,7 @@ class AnalysisContext(BaseModel):
     threat_intelligence: ThreatIntelligenceResult = Field(alias="threat_intel")
     dynamic: DynamicAnalysisResult | None = None
     ai: Optional[Any] = None
+    language: str = "vi"
 
     model_config = ConfigDict(
         populate_by_name=True
@@ -333,5 +334,6 @@ def create_default_threat_intelligence() -> ThreatIntelligenceResult:
         ip_reputation=AbuseIPDBAnalysis(),
         risk=ThreatIntelligenceRisk()
     )
+
 
     

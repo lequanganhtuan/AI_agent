@@ -7,8 +7,9 @@ httpx
 
 pydantic-settings
 python-dotenv
-redis
 dnspython
 playwright
 beautifulsoup4
 google-cloud-firestore
+google-genai
+Pillow

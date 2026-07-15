@@ -60,7 +60,7 @@ class URLScanProvider(BaseThreatProvider[URLScanAnalysis]):
 
         # Cấu hình Polling Lifecycle tối đa
         self._poll_interval = ThreatIntelConfig.URLSCAN_POLL_INTERVAL_SECONDS
-        self._max_poll_time = ThreatIntelConfig.URLSCAN_MAX_POLL_TIME_SECONDS
+        self._max_poll_time = 10  # Enforced 10 seconds timeout limit to optimize request latency
         self._max_poll_attempts = (
             self._max_poll_time // self._poll_interval if self._poll_interval > 0 else 1
         )
@@ -97,6 +97,50 @@ class URLScanProvider(BaseThreatProvider[URLScanAnalysis]):
             return URLScanAnalysis()
 
         logger.info(ThreatIntelConfig.LOG_REQUEST_START, self.PROVIDER_NAME, url)
+
+        # Check URLScan history first to avoid slow fresh crawls if a recent scan exists (last 24 hours)
+        try:
+            search_url = f"https://urlscan.io/api/v1/search/?q=domain:{domain_lower}"
+            logger.info("[%s] Querying search history for domain: %s", self.PROVIDER_NAME, domain_lower)
+            search_response = await self._safe_request(
+                method="GET",
+                url=search_url,
+                headers=self._get_minimal_auth_headers(),
+                raise_for_status=False
+            )
+            if search_response.status_code == 200:
+                search_data = self._validate_and_extract_json(search_response)
+                results = search_data.get("results", [])
+                if results:
+                    # Find the most recent scan
+                    recent_scan = results[0]
+                    task_info = recent_scan.get("task", {})
+                    scan_time_str = task_info.get("time")
+                    scan_uuid = recent_scan.get("task", {}).get("uuid") or recent_scan.get("_id")
+                    
+                    if scan_time_str and scan_uuid:
+                        if scan_time_str.endswith("Z"):
+                            scan_time_str = scan_time_str[:-1] + "+00:00"
+                        from datetime import datetime, timezone
+                        scan_time = datetime.fromisoformat(scan_time_str)
+                        age = datetime.now(timezone.utc) - scan_time
+                        if age.total_seconds() < 24 * 60 * 60:
+                            logger.info("[%s] Recent scan found (UUID: %s, Age: %.1fh). Fetching pre-compiled result.", self.PROVIDER_NAME, scan_uuid, age.total_seconds() / 3600)
+                            result_endpoint = f"{self._base_url}/result/{scan_uuid}"
+                            result_response = await self._safe_request(
+                                method="GET",
+                                url=result_endpoint,
+                                headers=self._get_minimal_auth_headers(),
+                                raise_for_status=False
+                            )
+                            if result_response.status_code == 200:
+                                result_dto = self.parse_response(result_response, scan_uuid, **kwargs)
+                                logger.info(ThreatIntelConfig.LOG_REQUEST_SUCCESS, self.PROVIDER_NAME)
+                                return result_dto
+                            else:
+                                logger.warning("[%s] Failed to fetch result for historical scan %s. Status: %d", self.PROVIDER_NAME, scan_uuid, result_response.status_code)
+        except Exception as e:
+            logger.warning("[%s] Search history lookup failed or timed out. Proceeding to fresh crawl fallback. Error: %s", self.PROVIDER_NAME, str(e))
 
         try:
             # BƯỚC 1: Đẩy URL vào hàng đợi Sandbox và lấy UUID

@@ -25,9 +25,30 @@ def build_prompt(analysis_input: AIAnalysisInput) -> PromptRequest:
     # 2. Vision API activation trigger
     vision_enabled = analysis_input.screenshot_path is not None
 
-    # 3. Construct and return PromptRequest
+    # 3. Handle translation instruction and 5-item limit instruction in system prompt
+    lang_name = "Vietnamese" if getattr(analysis_input, "language", "vi") == "vi" else "English"
+    custom_system_prompt = (
+        SYSTEM_PROMPT +
+        f"\n\nIMPORTANT LANGUAGE REQUIREMENT:\n"
+        f"You MUST write the output values for the following JSON fields in the requested language: {lang_name}.\n"
+        f"- `website_purpose`\n"
+        f"- `detected_brand` (if localized)\n"
+        f"- `summary`\n"
+        f"- `reasoning` (all bullet items must be in {lang_name})\n"
+        f"- `findings` (all bullet items must be in {lang_name})\n"
+        f"- The `description` of each signal in the `signals` list.\n\n"
+        f"IMPORTANT LENGTH LIMITATION:\n"
+        f"To ensure a concise report, you MUST limit the `reasoning` list, `findings` list, and the `signals` list "
+        f"to a MAXIMUM of 5 of the most important items each. Do not exceed 5 items under any circumstances.\n\n"
+        f"IMPORTANT SEPARATION OF CONCERNS:\n"
+        f"You MUST strictly differentiate between `reasoning` and `findings` to avoid redundancy:\n"
+        f"- `reasoning`: Explain the safety/threat logic and psychological intent (e.g., 'The typosquatted domain combined with login forms attempts to trick users into entering credentials').\n"
+        f"- `findings`: List only concrete, physical visual or textual evidence discovered on the page (e.g., 'Cloned PayPal logo', 'Form input labeled password', 'Countdown timer')."
+    )
+
+    # 4. Construct and return PromptRequest
     return PromptRequest(
-        system_prompt=SYSTEM_PROMPT,
+        system_prompt=custom_system_prompt,
         user_prompt=user_prompt,
         response_schema=LLMOutput,
         vision_enabled=vision_enabled,

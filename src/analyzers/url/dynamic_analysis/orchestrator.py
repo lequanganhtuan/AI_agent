@@ -77,15 +77,17 @@ class DynamicAnalysisOrchestrator:
                     return self._create_failed_result(context)
 
                 # 3. Post-load visual screenshot capture catching only specific errors
-                try:
-                    start_time = time.perf_counter()
-                    screenshot_res = await self.screenshot_collector.capture(session)
-                    screenshot_path = screenshot_res.screenshot_path
-                    screenshot_time_ms = (time.perf_counter() - start_time) * 1000
-                    logger.info("[DynamicAnalysisOrchestrator] Screenshot Capture latency: %.2f ms", screenshot_time_ms)
-                except ScreenshotCaptureError:
-                    logger.exception("[DynamicAnalysisOrchestrator] Visual screenshot capture failed")
-                    screenshot_path = None
+                screenshot_path = context.dynamic.screenshot_path if (context.dynamic and context.dynamic.screenshot_path) else None
+                if not screenshot_path:
+                    try:
+                        start_time = time.perf_counter()
+                        screenshot_res = await self.screenshot_collector.capture(session)
+                        screenshot_path = screenshot_res.screenshot_path
+                        screenshot_time_ms = (time.perf_counter() - start_time) * 1000
+                        logger.info("[DynamicAnalysisOrchestrator] Screenshot Capture latency: %.2f ms", screenshot_time_ms)
+                    except ScreenshotCaptureError:
+                        logger.exception("[DynamicAnalysisOrchestrator] Visual screenshot capture failed")
+                        screenshot_path = None
 
                 # 4. Analyze redirect chains and DOM
                 start_time = time.perf_counter()
@@ -137,6 +139,19 @@ class DynamicAnalysisOrchestrator:
                     risk=risk_res,
                     summary=summary
                 )
+                
+                # Save dynamic HTML to file system using validation cache_key
+                cache_key = getattr(context.validation, "cache_key", None)
+                if cache_key and snapshot and getattr(snapshot, "html", None):
+                    import os
+                    os.makedirs("artifacts/scans", exist_ok=True)
+                    try:
+                        safe_key = cache_key.replace(":", "_")
+                        with open(f"artifacts/scans/{safe_key}.html", "w", encoding="utf-8") as f:
+                            f.write(snapshot.html)
+                    except Exception as e:
+                        logger.error(f"Failed to save dynamic HTML to cache file: {str(e)}")
+
                 context.dynamic = result
                 return result
 

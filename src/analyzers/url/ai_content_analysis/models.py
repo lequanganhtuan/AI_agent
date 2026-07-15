@@ -53,6 +53,7 @@ class AIAnalysisInput(BaseModel):
     dynamic_summary: str
     important_signals: list[str]
     metadata: dict[str, Any]
+    language: str = "vi"
 
 
 # Model 2: PromptRequest
