@@ -64,7 +64,7 @@ class GeminiClient(BaseLLMClient):
                 decoded_image = base64.b64decode(request.screenshot_base64)
                 image_part = types.Part.from_bytes(
                     data=decoded_image,
-                    mime_type="image/png"
+                    mime_type="image/jpeg"
                 )
                 contents.append(image_part)
             except Exception as e:
@@ -79,7 +79,13 @@ class GeminiClient(BaseLLMClient):
             max_output_tokens=config.max_tokens,
             response_mime_type="application/json",
             response_schema=request.response_schema,
-            http_options=types.HttpOptions(timeout=timeout_ms)
+            http_options=types.HttpOptions(timeout=timeout_ms),
+            tools=[],
+            tool_config=types.ToolConfig(
+                function_calling_config=types.FunctionCallingConfig(
+                    mode="NONE"
+                )
+            )
         )
 
         # 3. Call Gemini async models API and measure execution duration

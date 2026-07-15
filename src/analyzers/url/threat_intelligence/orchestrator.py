@@ -4,7 +4,7 @@ import asyncio
 import logging
 from typing import Any
 
-import redis.asyncio as aioredis
+import time
 
 from src.analyzers.url.threat_intelligence.config import ThreatIntelConfig
 from src.analyzers.url.threat_intelligence.provider import (
@@ -47,19 +47,9 @@ class ThreatIntelOrchestrator:
         self.urlhaus = URLHausProvider()
         self.ip_reputation = AbuseIPDBProvider()
 
-        # Initialize Redis Cache Client
-        # Initialize Redis Cache Client
-        self._redis_client = None
-        if settings.redis_url:
-            try:
-                self._redis_client = aioredis.Redis.from_url(
-                    settings.redis_url,
-                    socket_timeout=1.0,
-                    decode_responses=True
-                )
-                logger.info("[Orchestrator] Redis async client initialized successfully.")
-            except Exception as exc:
-                logger.warning("[Orchestrator] Redis caching system not available: %s", exc)
+        # Initialize memory cache
+        self._cache: dict[str, tuple[ThreatIntelligenceResult, float]] = {}
+        logger.info("[Orchestrator] Local memory Threat Intel cache initialized.")
 
     # 2. CORE PIPELINE METHOD
     async def analyze_url(self, validation_result: ValidationResult) -> ThreatIntelligenceResult:
@@ -273,27 +263,22 @@ class ThreatIntelOrchestrator:
         return f"{prefix}full_threat_intel:{validation_result.cache_key}"
 
     async def _cache_result(self, key: str, result: ThreatIntelligenceResult) -> None:
-        """Persist result model into Redis cache."""
-        if not self._redis_client:
-            return
-
+        """Persist result model into local memory cache."""
         try:
-            data = result.model_dump_json()
             ttl = ThreatIntelConfig.DEFAULT_CACHE_TTL_SECONDS
-            await self._redis_client.set(key, data, ex=ttl)
+            self._cache[key] = (result, time.time() + ttl)
         except Exception as exc:
-            logger.warning("[Orchestrator] Redis Error: Failed to write serialized telemetry to cache: %s", exc)
+            logger.warning("[Orchestrator] Failed to cache result: %s", exc)
 
     async def _get_cached_result(self, key: str) -> ThreatIntelligenceResult | None:
-        """Retrieve and parse result model from Redis cache safely using Native Pydantic Validation."""
-        if not self._redis_client:
-            return None
-
+        """Retrieve result model from local memory cache safely."""
         try:
-            data = await self._redis_client.get(key)
-            if data:
-                # FIX ISSUE 4: Đọc trực tiếp byte-string/string bằng Pydantic v2 Engine, chống lỗi map sai Sub-models lồng nhau
-                return ThreatIntelligenceResult.model_validate_json(data)
+            if key in self._cache:
+                result, expire_time = self._cache[key]
+                if time.time() < expire_time:
+                    return result
+                else:
+                    del self._cache[key]
         except Exception as exc:
-            logger.warning("[Orchestrator] Redis Error: De-serialization integrity breach on cache read: %s", exc)
+            logger.warning("[Orchestrator] Failed to get cached result: %s", exc)
         return None

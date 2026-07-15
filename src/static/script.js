@@ -90,12 +90,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const risk = ai.risk || {};
         const content = ai.content || {};
         
+        const threatRisk = data.threat_intel?.risk || data.threat_intelligence?.risk || data.static?.risk;
+
         // Fallbacks (composite score of AI, else fall back to static/threat)
-        const score = typeof risk.score === 'number' ? Math.round(risk.score) : 0;
-        const verdict = content.recommended_action || 'ALLOW';
+        const score = typeof risk.score === 'number' 
+            ? Math.round(risk.score) 
+            : (threatRisk && typeof threatRisk.score === 'number' ? Math.round(threatRisk.score) : 0);
+
+        const verdict = content.recommended_action 
+            || (threatRisk && threatRisk.verdict) 
+            || (score >= 70 ? 'BLOCK' : score >= 40 ? 'WARN' : 'ALLOW');
+
         const rawConf = content.confidence;
-        const confidence = typeof rawConf === 'number' ? `${Math.round(rawConf * 100)}%` : 'N/A';
-        const insight = content.summary || content.website_purpose || 'No AI content audit telemetry collected.';
+        const confidence = typeof rawConf === 'number' 
+            ? `${Math.round(rawConf * 100)}%` 
+            : (threatRisk && typeof threatRisk.confidence === 'number' ? `${Math.round(threatRisk.confidence * 100)}%` : '100%');
+
+        const insight = content.summary 
+            || content.website_purpose 
+            || (threatRisk && threatRisk.summary) 
+            || 'No AI content audit telemetry collected.';
 
         // Animate gauge
         setTimeout(() => {
@@ -126,6 +140,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         summaryConfidence.textContent = confidence;
         summaryInsightText.textContent = insight;
+
+        // Update screenshot on summary card
+        const summaryScreenshotContainer = document.getElementById('summary-screenshot-container');
+        const summaryScreenshotImg = document.getElementById('summary-screenshot-img');
+        if (summaryScreenshotContainer && summaryScreenshotImg) {
+            const screenshotPath = (data.dynamic && data.dynamic.screenshot_path) ? data.dynamic.screenshot_path : null;
+            if (screenshotPath) {
+                summaryScreenshotImg.src = '/' + screenshotPath;
+                summaryScreenshotContainer.classList.remove('hidden');
+            } else {
+                summaryScreenshotContainer.classList.add('hidden');
+            }
+        }
 
         // Save last analyzed scan ID to local storage
         localStorage.setItem('recent_scan_id', data.id);

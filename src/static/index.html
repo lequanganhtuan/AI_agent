@@ -49,35 +49,91 @@
                 <div id="error-message" class="error-message hidden"></div>
             </form>
 
+            <style>
+                #summary-screenshot-container.hidden ~ #summary-screenshot-placeholder {
+                    display: flex !important;
+                }
+                #summary-screenshot-container:not(.hidden) ~ #summary-screenshot-placeholder {
+                    display: none !important;
+                }
+                .summary-card-hoverable {
+                    cursor: pointer;
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+                .summary-card-hoverable:hover {
+                    transform: translateY(-4px);
+                    border-color: rgba(96, 165, 250, 0.3) !important;
+                    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6) !important;
+                }
+            </style>
+
             <section id="summary-section" class="summary-section hidden">
-                <div class="summary-card" id="summary-card" style="cursor: pointer;">
-                    <div class="summary-card-header">
-                        <h3>Analysis Verdict</h3>
-                        <span class="view-details-hint">Click card to view detailed multi-phase analysis &rarr;</span>
-                    </div>
-                    <div class="summary-grid">
-                        <div class="summary-score-box">
-                            <div class="summary-score-circle">
-                                <svg viewBox="0 0 36 36" class="circular-chart-small">
-                                    <path class="circle-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                    <path class="circle" id="summary-score-path" stroke-dasharray="0, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                                    <text x="18" y="20.35" class="percentage" id="summary-score-value">0</text>
-                                </svg>
+                <div class="summary-card summary-card-hoverable" id="summary-card" style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 30px; border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(30, 41, 59, 0.4); backdrop-filter: blur(12px); border-radius: 20px; padding: 30px; box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4); text-align: left;">
+                    
+                    <!-- Left Column: Verdict & Summary -->
+                    <div class="summary-left-col" style="display: flex; flex-direction: column; gap: 24px;">
+                        
+                        <!-- VERDICT BOX -->
+                        <div class="verdict-box" style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px;">
+                            <h3 style="font-size: 1.15rem; color: #a78bfa; margin-bottom: 5px; font-weight: 700; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px; margin-top: 0;">VERDICT</h3>
+                            
+                            <div class="verdict-banner-row" style="display: flex; justify-content: space-between; align-items: center; gap: 15px;">
+                                <span style="font-size: 1rem; font-weight: 600; color: #cbd5e1;">Recommended Action:</span>
+                                <span id="summary-verdict" class="status-pill" style="font-size: 1rem; padding: 4px 14px;">ALLOW</span>
                             </div>
-                            <span class="summary-label">Risk Score</span>
+
+                            <div class="score-row" style="display: flex; align-items: center; gap: 20px; margin-top: 5px;">
+                                <div class="score-circle" style="width: 60px; height: 60px; flex-shrink: 0;">
+                                    <svg viewBox="0 0 36 36" class="circular-chart" style="width: 100%; height: 100%;">
+                                        <path class="circle-bg" style="fill: none; stroke: rgba(255,255,255,0.05); stroke-width: 3.8;"
+                                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                        <path class="circle" id="summary-score-path" stroke-dasharray="0, 100" style="fill: none; stroke: #fb7185; stroke-width: 3.8; stroke-linecap: round; transition: stroke-dasharray 0.6s ease;"
+                                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                        <text x="18" y="20.35" class="percentage" id="summary-score-value" style="fill: white; font-family: var(--font-mono); font-size: 8px; text-anchor: middle; font-weight: 700;">0</text>
+                                    </svg>
+                                </div>
+                                <div class="score-meta" style="display: flex; flex-direction: column; gap: 4px;">
+                                    <span style="font-size: 0.95rem; font-weight: 600; color: white;">Threat Risk Score</span>
+                                    <span style="font-size: 0.85rem; color: var(--text-muted);">AI Confidence: <span id="summary-confidence" style="color: #60a5fa; font-weight: 600;">0%</span></span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="summary-metric-box">
-                            <span class="summary-value status-pill" id="summary-verdict">ALLOW</span>
-                            <span class="summary-label">Verdict Action</span>
-                        </div>
-                        <div class="summary-metric-box">
-                            <span class="summary-value" id="summary-confidence">0%</span>
-                            <span class="summary-label">Confidence</span>
+
+                        <!-- SUMMARY BOX -->
+                        <div class="summary-box" style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 10px;">
+                            <h3 style="font-size: 1.15rem; color: #f472b6; margin-bottom: 5px; font-weight: 700; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px; margin-top: 0;">SUMMARY</h3>
+                            
+                            <div class="summary-insight-box">
+                                <h4 style="margin: 0 0 8px 0; font-size: 0.95rem; color: #a78bfa; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">AI Safety Summary</h4>
+                                <p id="summary-insight-text" style="margin: 0; font-size: 0.95rem; line-height: 1.6; color: #cbd5e1;">-</p>
+                            </div>
                         </div>
                     </div>
-                    <div class="summary-insight-box">
-                        <h4>LLM Analysis Insight</h4>
-                        <p id="summary-insight-text">-</p>
+
+                    <!-- Right Column: Visual Evidence Spanning Full Height -->
+                    <div class="summary-right-col" style="display: flex; flex-direction: column;">
+                        
+                        <div class="picture-box" style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; height: 100%; box-sizing: border-box;">
+                            <h3 style="font-size: 1.15rem; color: #fb7185; margin-bottom: 5px; font-weight: 700; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px; margin-top: 0;">PICTURE</h3>
+                            
+                            <div id="summary-screenshot-container" class="hidden" style="margin-top: 15px; border-radius: 8px; overflow: hidden; flex-grow: 1; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.25);">
+                                <img id="summary-screenshot-img" src="" alt="Website Screenshot" style="width: 100%; height: auto; max-height: 100%; object-fit: contain; display: block;">
+                            </div>
+                            
+                            <div id="summary-screenshot-placeholder" style="margin-top: 15px; border-radius: 8px; flex-grow: 1; min-height: 180px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px dashed rgba(255,255,255,0.15); color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 20px;">
+                                <svg viewBox="0 0 24 24" width="36" height="36" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 10px; opacity: 0.6;">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                    <polyline points="21 15 16 10 5 21"></polyline>
+                                </svg>
+                                <span>No Screenshot Evidence Available</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Details hint spanning both columns at bottom -->
+                    <div class="click-details-hint" style="grid-column: span 2; text-align: center; color: var(--text-muted); font-size: 0.95rem; margin-top: 10px; opacity: 0.85; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 15px;">
+                        Click anywhere on this card to view detailed multi-phase threat metrics &rarr;
                     </div>
                 </div>
             </section>
