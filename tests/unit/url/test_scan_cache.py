@@ -85,6 +85,14 @@ async def test_in_memory_cache_expiration(sample_report):
     assert retrieved is None
 
 def test_cache_factory_selection():
-    # Cache factory must always return InMemoryCache
-    cache = get_cache()
-    assert isinstance(cache, InMemoryCache)
+    # If redis_url is unset, factory returns InMemoryCache
+    with patch("src.core.cache.factory.settings") as mock_settings:
+        mock_settings.redis_url = None
+        cache = get_cache()
+        assert isinstance(cache, InMemoryCache)
+        
+    # If redis_url is set, factory still returns InMemoryCache (since Redis is deleted)
+    with patch("src.core.cache.factory.settings") as mock_settings:
+        mock_settings.redis_url = "redis://localhost:6379"
+        cache = get_cache()
+        assert isinstance(cache, InMemoryCache)

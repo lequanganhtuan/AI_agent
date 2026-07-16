@@ -136,7 +136,106 @@ class Settings(BaseSettings):
     )
 
     safe_whitelist_domains: str = Field(
-        default="google.com,gmail.com,youtube.com,facebook.com,apple.com,microsoft.com,live.com,outlook.com,twitter.com,x.com,linkedin.com,netflix.com,wikipedia.org,amazon.com,github.com,cloudflare.com,abuse.ch,virustotal.com,google.com.vn,googlevideo.com,example.com",
+        default="""
+            google.com
+            gmail.com
+            youtube.com
+            googlevideo.com
+            apple.com
+            icloud.com
+            microsoft.com
+            live.com
+            outlook.com
+            office.com
+            microsoftonline.com
+            amazon.com
+            aws.amazon.com
+            cloudflare.com
+            facebook.com
+            fb.com
+            messenger.com
+            instagram.com
+            twitter.com
+            x.com
+            linkedin.com
+            tiktok.com
+            reddit.com
+            pinterest.com
+            tumblr.com
+            discord.com
+            telegram.org
+            whatsapp.com
+            zoom.us
+            skype.com
+            github.com
+            githubusercontent.com
+            gitlab.com
+            bitbucket.org
+            docker.com
+            npmjs.com
+            pypi.org
+            stackoverflow.com
+            stackexchange.com
+            medium.com
+            dev.to
+            vercel.app
+            netlify.app
+            supabase.com
+            firebase.com
+            render.com
+            fly.dev
+            railway.app
+            heroku.com
+            openai.com
+            chatgpt.com
+            anthropic.com
+            claude.ai
+            cohere.com
+            huggingface.co
+            replicate.com
+            groq.com
+            perplexity.ai
+            abuse.ch
+            virustotal.com
+            shodan.io
+            censys.io
+            talosintelligence.com
+            urlscan.io
+            alienvault.com
+            haveibeenpwned.com
+            snyk.io
+            owasp.org
+            stripe.com
+            paypal.com
+            visa.com
+            mastercard.com
+            payoneer.com
+            wikipedia.org
+            wikimedia.org
+            w3schools.com
+            coursera.org
+            udemy.com
+            nytimes.com
+            bbc.com
+            bbc.co.uk
+            reuters.com
+            bloomberg.com
+            cnn.com
+            forbes.com
+            techcrunch.com
+            netflix.com
+            spotify.com
+            twitch.tv
+            disneyplus.com
+            vimeo.com
+            notion.so
+            trello.com
+            slack.com
+            figma.com
+            canva.com
+            dropbox.com
+            google.com.vn
+            example.com""",
         alias="SAFE_WHITELIST_DOMAINS",
     )
 
@@ -149,10 +248,11 @@ class Settings(BaseSettings):
         default=None,
         alias="AGENT_API_KEY",
     )
-
     @property
     def whitelist_domains_set(self) -> set[str]:
-        return {d.strip().lower() for d in self.safe_whitelist_domains.split(",") if d.strip()}
+        import re
+        raw_domains = re.split(r'[,\n]', self.safe_whitelist_domains)
+        return {d.strip().lower() for d in raw_domains if d.strip() and not d.strip().startswith("#")}
 
 
 settings = Settings()
