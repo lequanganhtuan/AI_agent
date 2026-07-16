@@ -134,37 +134,54 @@
                         <!-- Database Provider Verdicts -->
                         <div class="detail-card">
                             <h4 style="font-size: 1.2rem; color: #34d399; margin-bottom: 15px;">Threat Database Verification Results</h4>
-                            <div class="engines-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                                <div class="engine-card" id="card-vt" style="padding: 12px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
-                                    <h5 style="margin-bottom: 6px; font-size: 0.95rem;">VirusTotal</h5>
-                                    <div class="status-pill status-clean" id="engine-vt-status" style="font-size: 0.8rem; padding: 2px 6px;">Clean</div>
-                                    <p class="engine-sub" id="engine-vt-detail" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">0 engines hit</p>
-                                </div>
-                                <div class="engine-card" id="card-gsb" style="padding: 12px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
-                                    <h5 style="margin-bottom: 6px; font-size: 0.95rem;">Google Safe Browsing</h5>
-                                    <div class="status-pill status-clean" id="engine-gsb-status" style="font-size: 0.8rem; padding: 2px 6px;">Clean</div>
-                                    <p class="engine-sub" id="engine-gsb-detail" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">No match found</p>
-                                </div>
-                                <div class="engine-card" id="card-urlhaus" style="padding: 12px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
-                                    <h5 style="margin-bottom: 6px; font-size: 0.95rem;">URLHaus</h5>
-                                    <div class="status-pill status-clean" id="engine-urlhaus-status" style="font-size: 0.8rem; padding: 2px 6px;">Clean</div>
-                                    <p class="engine-sub" id="engine-urlhaus-detail" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">No malware index</p>
-                                </div>
-                                <div class="engine-card" id="card-urlscan" style="padding: 12px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
-                                    <h5 style="margin-bottom: 6px; font-size: 0.95rem;">URLScan</h5>
-                                    <div class="status-pill status-clean" id="engine-urlscan-status" style="font-size: 0.8rem; padding: 2px 6px;">Clean</div>
-                                    <p class="engine-sub" id="engine-urlscan-detail" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Score: 0</p>
-                                </div>
-                                <div class="engine-card" id="card-abuseipdb" style="padding: 12px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
-                                    <h5 style="margin-bottom: 6px; font-size: 0.95rem;">AbuseIPDB</h5>
-                                    <div class="status-pill status-clean" id="engine-abuseipdb-status" style="font-size: 0.8rem; padding: 2px 6px;">Clean</div>
-                                    <p class="engine-sub" id="engine-abuseipdb-detail" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">Confidence: 0%</p>
-                                </div>
-                                <div class="engine-card" id="card-phishtank" style="padding: 12px; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);">
-                                    <h5 style="margin-bottom: 6px; font-size: 0.95rem;">PhishTank</h5>
-                                    <div class="status-pill status-clean" id="engine-phishtank-status" style="font-size: 0.8rem; padding: 2px 6px;">Clean</div>
-                                    <p class="engine-sub" id="engine-phishtank-detail" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">No match found</p>
-                                </div>
+                            <div style="overflow-x: auto; background: rgba(15, 23, 42, 0.2); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px;">
+                                <table class="threat-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+                                    <thead>
+                                        <tr style="border-bottom: 1.5px solid rgba(255,255,255,0.08); background: rgba(255, 255, 255, 0.02);">
+                                            <th style="padding: 12px 16px; font-weight: 600; color: #94a3b8;">Source</th>
+                                            <th style="padding: 12px 16px; font-weight: 600; color: #94a3b8;">Key Metric / Status</th>
+                                            <th style="padding: 12px 16px; font-weight: 600; color: #94a3b8;">Quick Verdict</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- VirusTotal Row -->
+                                        <tr id="row-vt" style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                            <td style="padding: 14px 16px; font-weight: 500; color: #cbd5e1;">VirusTotal</td>
+                                            <td id="threat-vt-metric" style="padding: 14px 16px; color: #94a3b8;">0 flagged engines</td>
+                                            <td style="padding: 14px 16px;"><span id="threat-vt-verdict" style="font-weight: 600; color: #10b981;">● Clean</span></td>
+                                        </tr>
+                                        <!-- Google Safe Browsing Row -->
+                                        <tr id="row-gsb" style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                            <td style="padding: 14px 16px; font-weight: 500; color: #cbd5e1;">Google Safe Browsing</td>
+                                            <td id="threat-gsb-metric" style="padding: 14px 16px; color: #94a3b8;">No threats found</td>
+                                            <td style="padding: 14px 16px;"><span id="threat-gsb-verdict" style="font-weight: 600; color: #10b981;">● Safe</span></td>
+                                        </tr>
+                                        <!-- URLHaus Row -->
+                                        <tr id="row-urlhaus" style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                            <td style="padding: 14px 16px; font-weight: 500; color: #cbd5e1;">URLHaus</td>
+                                            <td id="threat-urlhaus-metric" style="padding: 14px 16px; color: #94a3b8;">Not blacklisted</td>
+                                            <td style="padding: 14px 16px;"><span id="threat-urlhaus-verdict" style="font-weight: 600; color: #10b981;">● Clean</span></td>
+                                        </tr>
+                                        <!-- AbuseIPDB Row -->
+                                        <tr id="row-abuseipdb" style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                            <td style="padding: 14px 16px; font-weight: 500; color: #cbd5e1;">AbuseIPDB</td>
+                                            <td id="threat-abuseipdb-metric" style="padding: 14px 16px; color: #94a3b8;">-</td>
+                                            <td style="padding: 14px 16px;"><span id="threat-abuseipdb-verdict" style="font-weight: 600; color: #10b981;">● Trustworthy (0% abuse)</span></td>
+                                        </tr>
+                                        <!-- URLScan Row -->
+                                        <tr id="row-urlscan" style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                            <td style="padding: 14px 16px; font-weight: 500; color: #cbd5e1;">URLScan</td>
+                                            <td id="threat-urlscan-metric" style="padding: 14px 16px; color: #94a3b8;">0 malicious verdicts</td>
+                                            <td style="padding: 14px 16px;"><span id="threat-urlscan-verdict" style="font-weight: 600; color: #10b981;">● Safe (Cached Scan)</span></td>
+                                        </tr>
+                                        <!-- PhishTank Row -->
+                                        <tr id="row-phishtank">
+                                            <td style="padding: 14px 16px; font-weight: 500; color: #cbd5e1;">PhishTank</td>
+                                            <td id="threat-phishtank-metric" style="padding: 14px 16px; color: #94a3b8;">No match found</td>
+                                            <td style="padding: 14px 16px;"><span id="threat-phishtank-verdict" style="font-weight: 600; color: #10b981;">● Clean</span></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
 
@@ -173,6 +190,12 @@
                 </div>
             </section>
         </main>
+    </div>
+
+    <!-- Screenshot Zoom Modal -->
+    <div id="screenshot-modal" class="screenshot-modal hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95); z-index: 1000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(8px); transition: all 0.3s ease;">
+        <span id="close-modal" style="position: absolute; top: 20px; right: 30px; font-size: 3rem; color: #cbd5e1; cursor: pointer; font-family: sans-serif; transition: color 0.2s;">&times;</span>
+        <img id="modal-img" src="" alt="Screenshot Zoomed" style="max-width: 90%; max-height: 90%; border-radius: 8px; border: 2px solid rgba(255, 255, 255, 0.1); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); cursor: zoom-out;">
     </div>
 
     <!-- Details script -->

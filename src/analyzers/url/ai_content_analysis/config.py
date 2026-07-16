@@ -7,10 +7,10 @@ class AIAnalysisConfig(BaseModel):
     
     # API Keys from centralized core setting
     gemini_api_key: str | None = Field(default=settings.gemini_api_key)
-    
+
     # Deployment model target
-    model_name: str = Field(default="gemini-2.5-flash")
-    backup_model_name: str = Field(default="gemini-2.5-flash-lite")
+    model_name: str = Field(default_factory=lambda: settings.gemini_model_name)
+    backup_model_name: str = Field(default_factory=lambda: settings.gemini_backup_model_name)
 
     # Temperature (deterministic)
     temperature: float = Field(default=0.0)
@@ -19,8 +19,7 @@ class AIAnalysisConfig(BaseModel):
     max_tokens: int = Field(default=8192)
     
     # HTTP Client request timeout limit
-    timeout_seconds: float = Field(default=60.0)
-
+    timeout_seconds: float = Field(default_factory=lambda: settings.gemini_timeout)
 
 
 # Active configuration instance

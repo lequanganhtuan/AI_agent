@@ -37,10 +37,9 @@ class AgentRunner:
             loop = None
             
         if loop and loop.is_running():
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(lambda: asyncio.run(self.run_async(url, cache_hit)))
-                return future.result()
+            from src.agents.tools.base import global_executor
+            future = global_executor.submit(lambda: asyncio.run(self.run_async(url, cache_hit)))
+            return future.result()
         else:
             return asyncio.run(self.run_async(url, cache_hit))
 
@@ -68,12 +67,37 @@ class AgentRunner:
                 state = await asyncio.to_thread(store_node, state)
                 return self._finalize_state(state, url, start_time)
 
+            # Whitelist ALLOW exit: bypass expensive scans (Playwright, Gemini, Virustotal, etc.)
+            from urllib.parse import urlparse
+            from src.core.settings import settings
+            try:
+                url_str = state.analysis.validation.normalized_url if state.analysis.validation else url
+                if not url_str.startswith(("http://", "https://")):
+                    url_str = f"https://{url_str}"
+                domain_lower = urlparse(url_str).netloc.lower().replace("www.", "")
+                parts = domain_lower.split(".")
+                root_domain = ".".join(parts[-2:]) if len(parts) >= 2 else domain_lower
+            except Exception:
+                root_domain = ""
+                domain_lower = ""
+
+            is_whitelisted = root_domain in settings.whitelist_domains_set or domain_lower in settings.whitelist_domains_set
+            if is_whitelisted:
+                logger.info(f"[Orchestrator] Active whitelist hit for {domain_lower}. Bypassing all scans (ALLOW Category).")
+                state.control.is_whitelisted = True
+                state.control.should_skip_dynamic = True
+                
+                # Build report and store
+                state = await asyncio.to_thread(report_node, state)
+                state = await asyncio.to_thread(store_node, state)
+                return self._finalize_state(state, url, start_time)
+
             # 2. Run Static, Threat, and early screenshot tasks concurrently in ThreadPoolExecutor
             loop = asyncio.get_running_loop()
             state_static, state_threat, screenshot_path = await asyncio.gather(
                 loop.run_in_executor(None, static_node, copy.deepcopy(state)),
                 loop.run_in_executor(None, threat_node, copy.deepcopy(state)),
-                loop.run_in_executor(None, run_early_screenshot_sync, url, state.execution.request_id)
+                loop.run_in_executor(None, run_early_screenshot_sync, state.analysis.validation.normalized_url, state.execution.request_id)
             )
 
             # Merge the parallel state outputs using Pydantic reducers
@@ -110,14 +134,8 @@ class AgentRunner:
                 root_domain = ""
                 domain_lower = ""
 
-            legitimate_domains = {
-                "google.com", "gmail.com", "youtube.com", "facebook.com", "apple.com",
-                "microsoft.com", "live.com", "outlook.com", "twitter.com", "x.com",
-                "linkedin.com", "netflix.com", "wikipedia.org", "amazon.com",
-                "github.com", "cloudflare.com", "abuse.ch", "virustotal.com",
-                "google.com.vn", "googlevideo.com", "example.com"
-            }
-            is_whitelisted = root_domain in legitimate_domains or domain_lower in legitimate_domains
+            from src.core.settings import settings
+            is_whitelisted = root_domain in settings.whitelist_domains_set or domain_lower in settings.whitelist_domains_set
 
             if is_threat_safe and is_static_safe and is_whitelisted:
                 logger.info("[Orchestrator] Tier 2 Decisive Safe Exit triggered. Bypassing Dynamic & AI analysis.")
@@ -185,6 +203,11 @@ class AgentRunner:
         logger.info(f"Cache Hit:    {state.control.cache_hit}")
 
         self.print_execution_summary(state)
+
+        # Clean up the checkpoint state to prevent memory leak
+        from src.agents.checkpoint import checkpoint_manager
+        checkpoint_manager.delete(state.execution.request_id)
+
         return state
 
     @staticmethod

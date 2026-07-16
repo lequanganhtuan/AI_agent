@@ -33,7 +33,7 @@ def test_valid_url_path():
     # Register mock threat tool to make it inconclusive at Tier 2 (proceeding to all nodes)
     tool_registry._tools["threat"] = MockInconclusiveThreatTool()
     
-    state = runner.run("https://example.com")
+    state = runner.run("https://valid-test-domain.com")
     
     assert state.workflow.status == ExecutionStatus.SUCCESS
     # Check that it traversed all standard nodes: validate, static, threat, merge, dynamic, ai, report, store
@@ -140,3 +140,73 @@ def test_ai_node_failure_path():
     assert len(state.telemetry.errors) == 1
     assert state.telemetry.errors[0].node == str(NodeName.AI)
     assert state.telemetry.errors[0].error_type == "RateLimitError"
+
+def test_whitelist_exit_path():
+    """E2E Test: Whitelisted domains trigger immediate active whitelist exit, bypassing other nodes."""
+    runner = AgentRunner()
+    # "google.com" is whitelisted in SAFE_WHITELIST_DOMAINS
+    state = runner.run("https://google.com")
+    
+    assert state.workflow.status == ExecutionStatus.SUCCESS
+    assert state.workflow.visited_nodes == [NodeName.VALIDATE, NodeName.REPORT, NodeName.STORE]
+    assert state.control.is_whitelisted is True
+    assert state.report is not None
+    assert state.report.score == 0
+    assert state.report.risk_level == "safe"
+    assert state.report.verdict == "ALLOW"
+    assert state.report.ai.content.recommended_action == "ALLOW"
+
+def test_suspicious_classification_path():
+    """E2E Test: A clean/new domain without prior threat/static indicators gets classified as SUSPICIOUS (score=35)."""
+    runner = AgentRunner()
+    
+    class MockCleanThreatTool(BaseTool):
+        def _execute(self, state) -> Any:
+            pass
+        def run(self, state):
+            from src.core.models import ThreatIntelligenceResult, ThreatIntelligenceRisk
+            res = ThreatIntelligenceResult(
+                risk=ThreatIntelligenceRisk(score=0, risk_level="low", summary="Clean", triggered_signals=[]),
+                virustotal={},
+                google_safe_browsing={},
+                urlscan={},
+                ip_reputation={},
+                urlhaus={"query_status": "no_match"}
+            )
+            return ToolResult(success=True, data=res, duration=0.05)
+
+    class MockCleanAITool(BaseTool):
+        def _execute(self, state) -> Any:
+            pass
+        def run(self, state):
+            from src.analyzers.url.ai_content_analysis.models import AIAnalysisResult, AIRisk, ContentAnalysisResult, FraudCategory, RecommendedAction, RiskLevel
+            res = AIAnalysisResult(
+                content=ContentAnalysisResult(
+                    website_purpose="Clean site",
+                    summary="No threat detected",
+                    detected_brand=None,
+                    brand_confidence=0.0,
+                    fraud_category=FraudCategory.LEGITIMATE,
+                    confidence=0.9,
+                    reasoning=["No issues."],
+                    findings=["All looks good."],
+                    recommended_action=RecommendedAction.ALLOW
+                ),
+                risk=AIRisk(score=0.0, level=RiskLevel.LOW, summary="Clean"),
+                signals=[]
+            )
+            return ToolResult(success=True, data=res, duration=0.05)
+
+    # Register mocks
+    tool_registry._tools["threat"] = MockCleanThreatTool()
+    tool_registry._tools["ai"] = MockCleanAITool()
+    
+    state = runner.run("https://new-unseen-domain.com")
+    
+    assert state.workflow.status == ExecutionStatus.SUCCESS
+    assert state.report is not None
+    assert state.report.score == 35
+    assert state.report.risk_level == "suspicious"
+    assert state.report.verdict == "SUSPICIOUS"
+    assert state.report.ai.content.recommended_action == "MONITOR"
+    assert "no established reputation" in state.report.ai.content.summary.lower()

@@ -115,6 +115,50 @@ class Settings(BaseSettings):
         alias="CACHE_TTL",
     )
 
+    gemini_model_name: str = Field(
+        default="gemini-2.5-flash-lite",
+        alias="GEMINI_MODEL_NAME",
+    )
+
+    gemini_backup_model_name: str = Field(
+        default="gemini-2.5-flash",
+        alias="GEMINI_BACKUP_MODEL_NAME",
+    )
+
+    gemini_timeout: float = Field(
+        default=60.0,
+        alias="GEMINI_TIMEOUT",
+    )
+
+    firestore_collection_name: str = Field(
+        default="scans",
+        alias="FIRESTORE_COLLECTION_NAME",
+    )
+
+    agent_max_retries: int = Field(
+        default=3,
+        alias="AGENT_MAX_RETRIES",
+    )
+
+    safe_whitelist_domains: str = Field(
+        default="google.com,gmail.com,youtube.com,facebook.com,apple.com,microsoft.com,live.com,outlook.com,twitter.com,x.com,linkedin.com,netflix.com,wikipedia.org,amazon.com,github.com,cloudflare.com,abuse.ch,virustotal.com,google.com.vn,googlevideo.com,example.com",
+        alias="SAFE_WHITELIST_DOMAINS",
+    )
+
+    firestore_ttl: int = Field(
+        default=2592000,
+        alias="FIRESTORE_TTL",
+    )
+
+    agent_api_key: str | None = Field(
+        default=None,
+        alias="AGENT_API_KEY",
+    )
+
+    @property
+    def whitelist_domains_set(self) -> set[str]:
+        return {d.strip().lower() for d in self.safe_whitelist_domains.split(",") if d.strip()}
+
 
 settings = Settings()
 

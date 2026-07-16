@@ -5,11 +5,24 @@ import logging
 
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Security, Depends, Response, Cookie
+from fastapi.security.api_key import APIKeyHeader
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
+API_KEY_NAME = "X-API-Key"
+api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+
+async def verify_api_key(
+    api_key_h: str | None = Depends(api_key_header),
+    api_key_c: str | None = Cookie(None, alias="agent_api_key")
+):
+    api_key = api_key_h or api_key_c
+    if settings.agent_api_key:
+        if not api_key or api_key != settings.agent_api_key:
+            raise HTTPException(status_code=403, detail="Forbidden: Invalid or missing API Key")
+    return api_key
 
 from src.analyzers.url.preprocessing.url_analyzer import URLAnalyzer
 from src.analyzers.url.static.static_url_analyzer import StaticURLAnalyzer
@@ -20,10 +33,56 @@ from src.core.database import FirestoreRepository
 from src.core.report.builder import ReportBuilder
 from src.core.settings import settings
 
+# Custom clean logging format setup for developer readability
+class CleanFormatter(logging.Formatter):
+    def format(self, record):
+        levelname = record.levelname
+        name = record.name.split(".")[-1]
+        
+        # Visual color codes (ANSI styling)
+        BLUE = "\033[94m"
+        CYAN = "\033[96m"
+        GREEN = "\033[92m"
+        YELLOW = "\033[93m"
+        RED = "\033[91m"
+        BOLD = "\033[1m"
+        RESET = "\033[0m"
+        
+        msg = record.getMessage()
+        
+        # Colorize logs dynamically based on content or level
+        if "Workflow Complete" in msg or "Execution Summary" in msg:
+            formatted_msg = f"\n{BOLD}{BLUE}{msg}{RESET}\n"
+        elif "Starting Agent" in msg:
+            formatted_msg = f"\n{BOLD}{BLUE}{msg}{RESET}"
+        elif "Executing" in msg:
+            formatted_msg = f"{CYAN}➔ {msg}{RESET}"
+        elif "Saved checkpoint" in msg:
+            formatted_msg = f"{GREEN}✓ {msg}{RESET}"
+        elif levelname == "WARNING":
+            formatted_msg = f"{YELLOW}⚠ {msg}{RESET}"
+        elif levelname == "ERROR" or levelname == "CRITICAL":
+            formatted_msg = f"{RED}✗ {msg}{RESET}"
+        else:
+            formatted_msg = msg
+            
+        record.msg = formatted_msg
+        time_str = self.formatTime(record, "%H:%M:%S")
+        return f"{time_str} [{levelname}] [{name}]: {formatted_msg}"
+
+# Configure root logger with the CleanFormatter
+root_logger = logging.getLogger()
+for h in list(root_logger.handlers):
+    root_logger.removeHandler(h)
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(CleanFormatter())
+root_logger.addHandler(stream_handler)
+root_logger.setLevel(logging.INFO)
+
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="URL Analyzer Web Demo")
+
 
 cache = get_cache()
 db_repo = FirestoreRepository()
@@ -33,6 +92,28 @@ async def persist_report_data(report):
         await db_repo.save_report(report)
     except Exception as db_err:
         logger.error(f"Failed to persist FraudReport to Firestore: {str(db_err)}")
+
+async def cache_and_persist_background(cache_key: str | None, report_id: str, report):
+    try:
+        is_whitelisted = False
+        from urllib.parse import urlparse
+        try:
+            url_str = report.url if report.url.startswith(("http://", "https://")) else f"https://{report.url}"
+            domain_lower = urlparse(url_str).netloc.lower().replace("www.", "")
+            parts = domain_lower.split(".")
+            root_domain = ".".join(parts[-2:]) if len(parts) >= 2 else domain_lower
+            is_whitelisted = root_domain in settings.whitelist_domains_set or domain_lower in settings.whitelist_domains_set
+        except Exception:
+            pass
+
+        ttl = 2592000 if is_whitelisted else settings.cache_ttl
+        
+        if cache_key:
+            await cache.set(cache_key, report, ttl=ttl)
+        await cache.set(report_id, report, ttl=ttl)
+    except Exception as cache_err:
+        logger.error(f"Failed to set report cache in background: {str(cache_err)}")
+    await persist_report_data(report)
 
 # Determine the absolute path to the static folder
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -51,9 +132,12 @@ app.mount("/artifacts", StaticFiles(directory=artifacts_dir), name="artifacts")
 
 class AnalyzeRequest(BaseModel):
     url: str
+    language: str = "vi"
 
 @app.get("/", response_class=HTMLResponse)
-async def read_root():
+async def read_root(response: Response):
+    if settings.agent_api_key:
+        response.set_cookie(key="agent_api_key", value=settings.agent_api_key, httponly=True)
     index_path = os.path.join(static_dir, "index.html")
     if os.path.exists(index_path):
         with open(index_path, "r", encoding="utf-8") as f:
@@ -61,20 +145,21 @@ async def read_root():
     return "<h1>Static directory not found!</h1>"
 
 @app.get("/details", response_class=HTMLResponse)
-async def read_details():
+async def read_details(response: Response):
+    if settings.agent_api_key:
+        response.set_cookie(key="agent_api_key", value=settings.agent_api_key, httponly=True)
     details_path = os.path.join(static_dir, "details.html")
     if os.path.exists(details_path):
         with open(details_path, "r", encoding="utf-8") as f:
             return f.read()
     return "<h1>Details template not found!</h1>"
 
-
 @app.post("/api/analyze")
-async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
+async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks, _api_key: str = Depends(verify_api_key)):
     try:
         url_lower = req.url.lower().strip()
-        
-        # Mock scenario interception for Web UI demonstration
+          # Mock scenario interception for Web UI demonstration
+        """
         if "scenario" in url_lower and ".test" in url_lower:
             from src.core.models import (
                 ValidationResult, URLComponents, URLMetadata, StaticAnalysisResult, StaticRiskAnalysis,
@@ -310,7 +395,7 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
                     system_prompt=mock_system_prompt,
                     user_prompt=mock_user_prompt
                 )
-
+ 
             context = AnalysisContext(
                 validation=val_res,
                 static=static_res,
@@ -323,22 +408,26 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
             )
             report = ReportBuilder.build(context)
             
-            # Persist mock report to cache (by ID and Cache Key) and to Database in background
-            await cache.set(report.id, report, ttl=settings.cache_ttl)
-            if val_res.cache_key:
-                await cache.set(val_res.cache_key, report, ttl=settings.cache_ttl)
-            
-            background_tasks.add_task(persist_report_data, report)
+            # Persist mock report to cache (by ID and Cache Key) and to Database in background via BackgroundTasks
+            background_tasks.add_task(
+                cache_and_persist_background,
+                val_res.cache_key,
+                report.id,
+                report
+            )
             return report
+        """
 
         url_analyzer = URLAnalyzer()
         
-        # 1. Preprocessing and cache lookup
+        # 1. Preprocessing
         validation_result = url_analyzer.analyze(req.url)
         
         if not validation_result.valid:
+            # If validation fails, return an error
             raise HTTPException(status_code=400, detail=validation_result.error_message or "URL validation failed.")
             
+        # Caching check
         cache_key = validation_result.cache_key
         if cache_key:
             cached_report = await cache.get(cache_key)
@@ -346,30 +435,31 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
                 logger.info(f"Returning cached FraudReport for URL: {req.url}")
                 return cached_report
 
-        # 2. Invoke the E2E Vanilla Async/Await Orchestrator
+        # 2. Run the agent workflow
         from src.agents.runner import AgentRunner
         from src.agents.state import ExecutionStatus
-        
+
         runner = AgentRunner()
         state = await runner.run_async(req.url)
         
-        if state.workflow.status == ExecutionStatus.FAILED and not state.report:
-            err_msg = state.telemetry.errors[-1].message if state.telemetry.errors else "Unknown workflow failure"
-            raise HTTPException(status_code=400, detail=err_msg)
+        if state.workflow.status == ExecutionStatus.FAILED:
+            error_msg = state.telemetry.errors[-1].message if state.telemetry.errors else "Unknown agent execution error"
+            raise HTTPException(status_code=500, detail=f"Agent workflow failed: {error_msg}")
             
         report = state.report
+        if not report:
+            raise HTTPException(status_code=500, detail="Agent workflow finished without generating a report.")
+
+        # Delegate caching and database persistence to FastAPI BackgroundTasks to optimize response latency
+        background_tasks.add_task(
+            cache_and_persist_background,
+            cache_key,
+            report.id,
+            report
+        )
         
-        # 3. Cache result and schedule background Firestore persistence
-        if report:
-            if cache_key:
-                await cache.set(cache_key, report, ttl=settings.cache_ttl)
-            await cache.set(report.id, report, ttl=settings.cache_ttl)
-            background_tasks.add_task(persist_report_data, report)
-            
         return report
         
-    except HTTPException:
-        raise
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -380,7 +470,8 @@ async def get_scan_history(
     limit: int = 20,
     search: str | None = None,
     verdict: str | None = None,
-    risk: str | None = None
+    risk: str | None = None,
+    _api_key: str = Depends(verify_api_key)
 ):
     try:
         # Check DB first
@@ -429,7 +520,7 @@ async def get_scan_history(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/history/{scan_id}")
-async def get_historical_scan(scan_id: str):
+async def get_historical_scan(scan_id: str, _api_key: str = Depends(verify_api_key)):
     try:
         # Check cache first
         cached_report = await cache.get(scan_id)

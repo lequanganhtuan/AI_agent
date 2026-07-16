@@ -1,10 +1,13 @@
 import time
 import logging
+import concurrent.futures
 from typing import Any
 from pydantic import BaseModel
 from src.agents.state import URLAnalysisState
 
 logger = logging.getLogger(__name__)
+
+global_executor = concurrent.futures.ThreadPoolExecutor(max_workers=32)
 
 class ToolResult(BaseModel):
     success: bool

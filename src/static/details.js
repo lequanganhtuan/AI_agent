@@ -53,8 +53,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function displayResults(data) {
         // 1. COMPOUNDED RISK SCORE & VERDICT RESOLUTION
         const threatRisk = data.threat_intelligence?.risk || data.threat_intel?.risk;
-        const score = threatRisk ? threatRisk.score : 0;
-        const riskLevel = (threatRisk ? threatRisk.risk_level : 'low').toLowerCase();
+        const score = typeof data.score === 'number' ? Math.round(data.score) : (threatRisk ? threatRisk.score : 0);
+        const riskLevel = (data.risk_level || (threatRisk ? threatRisk.risk_level : 'low')).toLowerCase();
 
         // Animate the risk score gauge circle
         setTimeout(() => {
@@ -68,14 +68,19 @@ document.addEventListener('DOMContentLoaded', () => {
         riskLevelText.textContent = riskLevel;
 
         // Apply action badge styling
-        const action = data.ai?.content?.recommended_action || (score >= 70 ? 'BLOCK' : score >= 40 ? 'WARN' : 'ALLOW');
+        const action = data.verdict || data.ai?.content?.recommended_action || (score >= 70 ? 'BLOCK' : score >= 40 ? 'WARN' : 'ALLOW');
         verdictBadge.textContent = action;
         verdictBadge.className = 'status-pill';
+
         if (action === 'BLOCK') {
             verdictBadge.style.background = 'rgba(239, 68, 68, 0.15)';
             verdictBadge.style.color = '#ef4444';
             verdictBadge.style.border = '1px solid rgba(239, 68, 68, 0.3)';
         } else if (action === 'WARN') {
+            verdictBadge.style.background = 'rgba(245, 158, 11, 0.15)';
+            verdictBadge.style.color = '#f59e0b';
+            verdictBadge.style.border = '1px solid rgba(245, 158, 11, 0.3)';
+        } else if (action === 'SUSPICIOUS') {
             verdictBadge.style.background = 'rgba(245, 158, 11, 0.15)';
             verdictBadge.style.color = '#f59e0b';
             verdictBadge.style.border = '1px solid rgba(245, 158, 11, 0.3)';
@@ -216,83 +221,71 @@ document.addEventListener('DOMContentLoaded', () => {
         window.requestAnimationFrame(step);
     }
 
-    function handleEngineError(card, status, detail, dataObj) {
-        card.className = 'engine-card border-warning';
-        status.textContent = 'API Error';
-        status.className = 'status-pill status-warning';
-        detail.textContent = dataObj?.error_message || 'Lookup failed';
+    function handleEngineError(metricEl, verdictEl, dataObj) {
+        verdictEl.textContent = '● Error';
+        verdictEl.style.color = '#ef4444';
+        metricEl.textContent = dataObj?.error_message || 'Lookup failed';
     }
 
     function populateEngineVT(vt, isHit) {
-        const status = document.getElementById('engine-vt-status');
-        const detail = document.getElementById('engine-vt-detail');
-        const card = document.getElementById('card-vt');
-        card.className = 'engine-card';
+        const metric = document.getElementById('threat-vt-metric');
+        const verdict = document.getElementById('threat-vt-verdict');
         if (vt && vt.error_message) {
-            handleEngineError(card, status, detail, vt);
+            handleEngineError(metric, verdict, vt);
             return;
         }
         if (isHit && vt && vt.malicious > 0) {
-            status.textContent = 'Malicious';
-            status.className = 'status-pill status-danger';
-            detail.textContent = `${vt.malicious} / ${vt.total_engines || 0} flagged engines`;
-            card.classList.add('border-danger');
+            verdict.textContent = '● Malicious';
+            verdict.style.color = '#ef4444';
+            metric.textContent = `${vt.malicious} / ${vt.total_engines || 92} detections`;
         } else {
-            status.textContent = 'Clean';
-            status.className = 'status-pill status-clean';
-            detail.textContent = '0 flagged engines';
+            verdict.textContent = '● Clean';
+            verdict.style.color = '#10b981';
+            metric.textContent = `0 / ${vt ? vt.total_engines || 92 : 92} detections`;
         }
     }
 
     function populateEngineGSB(gsb, isHit) {
-        const status = document.getElementById('engine-gsb-status');
-        const detail = document.getElementById('engine-gsb-detail');
-        const card = document.getElementById('card-gsb');
-        card.className = 'engine-card';
+        const metric = document.getElementById('threat-gsb-metric');
+        const verdict = document.getElementById('threat-gsb-verdict');
         if (gsb && gsb.error_message) {
-            handleEngineError(card, status, detail, gsb);
+            handleEngineError(metric, verdict, gsb);
             return;
         }
         if (isHit && gsb && gsb.threat_found) {
-            status.textContent = 'Malicious';
-            status.className = 'status-pill status-danger';
-            detail.textContent = `Threat type: ${gsb.threat_type || 'Malware'}`;
-            card.classList.add('border-danger');
+            verdict.textContent = '● Dangerous';
+            verdict.style.color = '#ef4444';
+            metric.textContent = `Threat type: ${gsb.threat_type || 'Malware'}`;
         } else {
-            status.textContent = 'Clean';
-            status.className = 'status-pill status-clean';
-            detail.textContent = 'No threats found';
+            verdict.textContent = '● Safe';
+            verdict.style.color = '#10b981';
+            metric.textContent = 'Clean';
         }
     }
 
     function populateEngineURLHaus(uh, isHit) {
-        const status = document.getElementById('engine-urlhaus-status');
-        const detail = document.getElementById('engine-urlhaus-detail');
-        const card = document.getElementById('card-urlhaus');
-        card.className = 'engine-card';
+        const metric = document.getElementById('threat-urlhaus-metric');
+        const verdict = document.getElementById('threat-urlhaus-verdict');
         if (uh && uh.error_message) {
-            handleEngineError(card, status, detail, uh);
+            handleEngineError(metric, verdict, uh);
             return;
         }
         if (isHit && uh && uh.query_status === 'ok') {
-            status.textContent = 'Malicious';
-            status.className = 'status-pill status-danger';
-            detail.textContent = `Flagged as: ${uh.threat || 'malware'}`;
-            card.classList.add('border-danger');
+            verdict.textContent = '● Malicious';
+            verdict.style.color = '#ef4444';
+            metric.textContent = `Malicious: ${uh.threat || 'malware'}`;
         } else {
-            status.textContent = 'Clean';
-            status.className = 'status-pill status-clean';
-            detail.textContent = 'No threats found';
+            verdict.textContent = '● Clean';
+            verdict.style.color = '#10b981';
+            metric.textContent = 'Not blacklisted';
         }
     }
 
     function populateEngineURLScan(us, isHit) {
-        const status = document.getElementById('engine-urlscan-status');
-        const detail = document.getElementById('engine-urlscan-detail');
-        const card = document.getElementById('card-urlscan');
-        card.className = 'engine-card';
+        const metric = document.getElementById('threat-urlscan-metric');
+        const verdict = document.getElementById('threat-urlscan-verdict');
         if (us && us.error_message) {
-            handleEngineError(card, status, detail, us);
+            handleEngineError(metric, verdict, us);
             return;
         }
         const globalScore = us ? us.malicious_score || 0 : 0;
@@ -300,60 +293,79 @@ document.addEventListener('DOMContentLoaded', () => {
         const formScore = us ? Math.round((us.form_risk_score || 0) * 100) : 0;
         const maxScore = Math.max(globalScore, localScore, formScore);
 
+        metric.textContent = `${maxScore} / 100 malicious verdicts`;
+        
         if (isHit || maxScore >= 40) {
             const isMalicious = maxScore >= 75;
-            status.textContent = isMalicious ? 'Malicious' : 'Suspicious';
-            status.className = `status-pill status-${isMalicious ? 'danger' : 'warning'}`;
-            detail.textContent = `Risk score: ${maxScore}%`;
-            card.classList.add(isMalicious ? 'border-danger' : 'border-warning');
+            verdict.textContent = isMalicious ? '● Malicious' : '● Suspicious';
+            verdict.style.color = isMalicious ? '#ef4444' : '#f59e0b';
         } else {
-            status.textContent = 'Clean';
-            status.className = 'status-pill status-clean';
-            detail.textContent = `Risk score: ${maxScore}%`;
+            verdict.textContent = '● Safe (Cached Scan)';
+            verdict.style.color = '#10b981';
         }
     }
 
     function populateEngineAbuseIPDB(ab, isHit) {
-        const status = document.getElementById('engine-abuseipdb-status');
-        const detail = document.getElementById('engine-abuseipdb-detail');
-        const card = document.getElementById('card-abuseipdb');
-        card.className = 'engine-card';
+        const metric = document.getElementById('threat-abuseipdb-metric');
+        const verdict = document.getElementById('threat-abuseipdb-verdict');
         if (ab && ab.error_message) {
-            handleEngineError(card, status, detail, ab);
+            handleEngineError(metric, verdict, ab);
             return;
         }
         const score = ab ? ab.abuse_score || 0 : 0;
+        metric.textContent = ab && ab.ip_address ? ab.ip_address : '-';
+        
         if (score >= 40) {
             const isMalicious = score >= 75;
-            status.textContent = isMalicious ? 'Malicious' : 'Suspicious';
-            status.className = `status-pill status-${isMalicious ? 'danger' : 'warning'}`;
-            detail.textContent = `Confidence: ${score}% (${ab.total_reports || 0} reports)`;
-            card.classList.add(isMalicious ? 'border-danger' : 'border-warning');
+            verdict.textContent = isMalicious ? `● Malicious (${score}% abuse)` : `● Suspicious (${score}% abuse)`;
+            verdict.style.color = isMalicious ? '#ef4444' : '#f59e0b';
         } else {
-            status.textContent = 'Clean';
-            status.className = 'status-pill status-clean';
-            detail.textContent = `Confidence: ${score}%`;
+            verdict.textContent = `● Trustworthy (${score}% abuse)`;
+            verdict.style.color = '#10b981';
         }
     }
 
     function populateEnginePhishTank(pt, isHit) {
-        const status = document.getElementById('engine-phishtank-status');
-        const detail = document.getElementById('engine-phishtank-detail');
-        const card = document.getElementById('card-phishtank');
-        card.className = 'engine-card';
+        const metric = document.getElementById('threat-phishtank-metric');
+        const verdict = document.getElementById('threat-phishtank-verdict');
         if (pt && pt.error_message) {
-            handleEngineError(card, status, detail, pt);
+            handleEngineError(metric, verdict, pt);
             return;
         }
         if (isHit && pt && pt.in_database) {
-            status.textContent = 'Malicious';
-            status.className = 'status-pill status-danger';
-            detail.textContent = 'Listed in PhishTank database';
-            card.classList.add('border-danger');
+            verdict.textContent = '● Malicious';
+            verdict.style.color = '#ef4444';
+            metric.textContent = 'Listed in PhishTank database';
         } else {
-            status.textContent = 'Clean';
-            status.className = 'status-pill status-clean';
-            detail.textContent = 'No listing found';
+            verdict.textContent = '● Clean';
+            verdict.style.color = '#10b981';
+            metric.textContent = 'No match found';
         }
+    }
+
+    // --- SCREENSHOT MODAL ZOOM EVENT HANDLERS ---
+    const screenshotImg = document.getElementById('dynamic-screenshot-img');
+    const modal = document.getElementById('screenshot-modal');
+    const modalImg = document.getElementById('modal-img');
+    const closeModal = document.getElementById('close-modal');
+
+    if (screenshotImg && modal && modalImg) {
+        screenshotImg.style.cursor = 'zoom-in';
+        screenshotImg.addEventListener('click', () => {
+            modalImg.src = screenshotImg.src;
+            modal.style.display = 'flex';
+        });
+
+        if (closeModal) {
+            closeModal.addEventListener('click', () => {
+                modal.style.display = 'none';
+            });
+        }
+
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal || e.target === modalImg) {
+                modal.style.display = 'none';
+            }
+        });
     }
 });

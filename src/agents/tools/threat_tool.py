@@ -1,24 +1,26 @@
+import asyncio
 from typing import Any
 from src.agents.state import URLAnalysisState
-from src.core.models import (
-    ThreatIntelligenceResult, VirusTotalAnalysis, GoogleSafeBrowsingAnalysis,
-    URLScanAnalysis, AbuseIPDBAnalysis, ThreatIntelligenceRisk
-)
+from src.analyzers.url.threat_intelligence.orchestrator import ThreatIntelOrchestrator
 from .base import BaseTool
 
 class ThreatTool(BaseTool):
+    def __init__(self):
+        self.orchestrator = ThreatIntelOrchestrator()
+
     def _execute(self, state: URLAnalysisState) -> Any:
-        url = state.analysis.raw_url or ""
-        is_malicious = "phishing" in url or "malicious" in url
-        
-        score = 85 if is_malicious else 0
-        level = "high" if is_malicious else "low"
-        summary = "Mock high threat detected" if is_malicious else "Mock threat pass"
-        
-        return ThreatIntelligenceResult(
-            virustotal=VirusTotalAnalysis(malicious=5 if is_malicious else 0, found=is_malicious),
-            google_safe_browsing=GoogleSafeBrowsingAnalysis(threat_found=is_malicious),
-            urlscan=URLScanAnalysis(),
-            ip_reputation=AbuseIPDBAnalysis(),
-            risk=ThreatIntelligenceRisk(score=score, risk_level=level, summary=summary)
-        )
+        validation_result = state.analysis.validation
+        if not validation_result:
+            raise ValueError("ValidationResult in state is missing")
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+            
+        if loop and loop.is_running():
+            from .base import global_executor
+            future = global_executor.submit(lambda: asyncio.run(self.orchestrator.analyze_url(validation_result)))
+            return future.result()
+        else:
+            return asyncio.run(self.orchestrator.analyze_url(validation_result))

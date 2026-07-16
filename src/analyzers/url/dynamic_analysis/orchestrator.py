@@ -77,15 +77,17 @@ class DynamicAnalysisOrchestrator:
                     return self._create_failed_result(context)
 
                 # 3. Post-load visual screenshot capture catching only specific errors
-                try:
-                    start_time = time.perf_counter()
-                    screenshot_res = await self.screenshot_collector.capture(session)
-                    screenshot_path = screenshot_res.screenshot_path
-                    screenshot_time_ms = (time.perf_counter() - start_time) * 1000
-                    logger.info("[DynamicAnalysisOrchestrator] Screenshot Capture latency: %.2f ms", screenshot_time_ms)
-                except ScreenshotCaptureError:
-                    logger.exception("[DynamicAnalysisOrchestrator] Visual screenshot capture failed")
-                    screenshot_path = None
+                screenshot_path = context.dynamic.screenshot_path if (context.dynamic and context.dynamic.screenshot_path) else None
+                if not screenshot_path:
+                    try:
+                        start_time = time.perf_counter()
+                        screenshot_res = await self.screenshot_collector.capture(session)
+                        screenshot_path = screenshot_res.screenshot_path
+                        screenshot_time_ms = (time.perf_counter() - start_time) * 1000
+                        logger.info("[DynamicAnalysisOrchestrator] Screenshot Capture latency: %.2f ms", screenshot_time_ms)
+                    except ScreenshotCaptureError:
+                        logger.exception("[DynamicAnalysisOrchestrator] Visual screenshot capture failed")
+                        screenshot_path = None
 
                 # 4. Analyze redirect chains and DOM
                 start_time = time.perf_counter()

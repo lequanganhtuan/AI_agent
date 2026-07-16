@@ -5,3 +5,4 @@ class ControlState(BaseModel):
     should_retry: bool = False
     should_stop: bool = False
     should_skip_dynamic: bool = False
+    is_whitelisted: bool = False

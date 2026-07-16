@@ -90,12 +90,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const risk = ai.risk || {};
         const content = ai.content || {};
         
-        // Fallbacks (composite score of AI, else fall back to static/threat)
-        const score = typeof risk.score === 'number' ? Math.round(risk.score) : 0;
-        const verdict = content.recommended_action || 'ALLOW';
+        const threatRisk = data.threat_intel?.risk || data.threat_intelligence?.risk || data.static?.risk;
+
+        // Unified composite score from backend
+        const score = typeof data.score === 'number'
+            ? Math.round(data.score)
+            : (typeof risk.score === 'number' ? Math.round(risk.score) : (threatRisk && typeof threatRisk.score === 'number' ? Math.round(threatRisk.score) : 0));
+
+        const verdict = data.verdict 
+            || content.recommended_action 
+            || (threatRisk && threatRisk.verdict) 
+            || (score >= 70 ? 'BLOCK' : score >= 40 ? 'WARN' : 'ALLOW');
+
         const rawConf = content.confidence;
-        const confidence = typeof rawConf === 'number' ? `${Math.round(rawConf * 100)}%` : 'N/A';
-        const insight = content.summary || content.website_purpose || 'No AI content audit telemetry collected.';
+        const confidence = typeof rawConf === 'number' 
+            ? `${Math.round(rawConf * 100)}%` 
+            : (threatRisk && typeof threatRisk.confidence === 'number' ? `${Math.round(threatRisk.confidence * 100)}%` : '100%');
+
+        const insight = content.summary 
+            || content.website_purpose 
+            || (threatRisk && threatRisk.summary) 
+            || 'No AI content audit telemetry collected.';
 
         // Animate gauge
         setTimeout(() => {
@@ -118,6 +133,10 @@ document.addEventListener('DOMContentLoaded', () => {
             summaryVerdict.style.background = 'rgba(59, 130, 246, 0.15)';
             summaryVerdict.style.color = '#3b82f6';
             summaryVerdict.style.border = '1px solid rgba(59, 130, 246, 0.3)';
+        } else if (verdict === 'SUSPICIOUS') {
+            summaryVerdict.style.background = 'rgba(245, 158, 11, 0.15)';
+            summaryVerdict.style.color = '#f59e0b';
+            summaryVerdict.style.border = '1px solid rgba(245, 158, 11, 0.3)';
         } else {
             summaryVerdict.style.background = 'rgba(16, 185, 129, 0.15)';
             summaryVerdict.style.color = '#10b981';

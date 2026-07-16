@@ -15,8 +15,8 @@ class FirestoreRepository(BaseRepository):
 
     _client_lock = threading.Lock()
 
-    def __init__(self, collection_name: str = "scans") -> None:
-        self.collection_name = collection_name
+    def __init__(self, collection_name: Optional[str] = None) -> None:
+        self.collection_name = collection_name or settings.firestore_collection_name
         self._client: Optional[AsyncClient] = None
 
     @property
