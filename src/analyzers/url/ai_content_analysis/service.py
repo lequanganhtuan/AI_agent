@@ -48,9 +48,19 @@ class AIAnalysisService:
 
         # Step 4: Parse raw text response to verified model
         content_result = self.parser.parse(raw_response)
+        
+        # Enforce maximum 5 items for reasoning and findings
+        if content_result and content_result.reasoning:
+            content_result.reasoning = content_result.reasoning[:5]
+        if content_result and content_result.findings:
+            content_result.findings = content_result.findings[:5]
 
         # Step 5: Generate threat signals from analysis contents
         signals = self.signal_generator.generate(content_result)
+        
+        # Enforce maximum 5 items for signals
+        if signals:
+            signals = signals[:5]
 
         # Step 6: Calculate risk scores and levels from signals
         risk = self.risk_engine.calculate_risk(signals, content_result.recommended_action)

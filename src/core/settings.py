@@ -82,11 +82,6 @@ class Settings(BaseSettings):
     )
 
 
-    # Redis (Future Phase)
-    redis_url: str | None = Field(
-        default=None,
-        alias="REDIS_URL",
-    )
 
     # PostgreSQL (Future Phase)
     database_url: str | None = Field(
@@ -96,7 +91,7 @@ class Settings(BaseSettings):
 
     # Firestore (Phase 6)
     firestore_project_id: str | None = Field(
-        default=None,
+        default="vtrust-vn",
         alias="FIRESTORE_PROJECT_ID",
     )
 

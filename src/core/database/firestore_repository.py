@@ -1,8 +1,10 @@
 import logging
+import os
 import threading
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from google.cloud.firestore import AsyncClient, Query
+from google.auth.credentials import AnonymousCredentials
 
 from src.core.settings import settings
 from src.core.database.base_repository import BaseRepository
@@ -14,7 +16,6 @@ class FirestoreRepository(BaseRepository):
     """Manages persistence of FraudReports in Google Cloud Firestore."""
 
     _client_lock = threading.Lock()
-
     def __init__(self, collection_name: Optional[str] = None) -> None:
         self.collection_name = collection_name or settings.firestore_collection_name
         self._client: Optional[AsyncClient] = None
@@ -27,8 +28,18 @@ class FirestoreRepository(BaseRepository):
                 if self._client is None:
                     project = settings.firestore_project_id
                     database = settings.firestore_database_id
-                    logger.info(f"Initializing Firestore AsyncClient for project: {project}, database: {database}")
-                    self._client = AsyncClient(project=project, database=database)
+                    
+                    emulator_host = os.environ.get("FIRESTORE_EMULATOR_HOST")
+                    if emulator_host:
+                        logger.info(f"Initializing Firestore AsyncClient for EMULATOR at {emulator_host}. Project: {project}, database: {database}")
+                        self._client = AsyncClient(
+                            project=project,
+                            database=database,
+                            credentials=AnonymousCredentials()
+                        )
+                    else:
+                        logger.info(f"Initializing Firestore AsyncClient for project: {project}, database: {database}")
+                        self._client = AsyncClient(project=project, database=database)
         return self._client
 
     async def save_report(self, report: FraudReport) -> str:

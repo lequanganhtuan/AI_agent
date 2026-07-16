@@ -108,5 +108,6 @@ def build_context(context: AnalysisContext, html: Optional[str] = None) -> AIAna
         threat_summary=threat_summary,
         dynamic_summary=dynamic_summary,
         important_signals=important_signals,
-        metadata=metadata
+        metadata=metadata,
+        language=getattr(context, "language", "vi")
     )

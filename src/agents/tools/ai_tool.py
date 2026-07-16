@@ -20,7 +20,7 @@ def build_context_from_state(state: URLAnalysisState) -> AnalysisContext:
 
 class AITool(BaseTool):
     def __init__(self):
-        self.orchestrator = AIContentAnalysisOrchestrator()
+        pass
 
     def _execute(self, state: URLAnalysisState) -> Any:
         context = build_context_from_state(state)
@@ -45,6 +45,8 @@ class AITool(BaseTool):
                 except Exception as e:
                     logger.error(f"Failed to read dynamic HTML from cache: {str(e)}")
 
+        orchestrator = AIContentAnalysisOrchestrator()
+
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -52,8 +54,8 @@ class AITool(BaseTool):
             
         if loop and loop.is_running():
             from .base import global_executor
-            future = global_executor.submit(lambda: asyncio.run(self.orchestrator.analyze(context, html)))
+            future = global_executor.submit(lambda: asyncio.run(orchestrator.analyze(context, html)))
             mutated_context = future.result()
         else:
-            mutated_context = asyncio.run(self.orchestrator.analyze(context, html))            
+            mutated_context = asyncio.run(orchestrator.analyze(context, html))            
         return mutated_context.ai

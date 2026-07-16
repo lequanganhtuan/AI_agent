@@ -19,11 +19,13 @@ def build_context_from_state(state: URLAnalysisState) -> AnalysisContext:
 
 class DynamicTool(BaseTool):
     def __init__(self):
-        self.orchestrator = DynamicAnalysisOrchestrator()
+        pass
 
     def _execute(self, state: URLAnalysisState) -> Any:
         context = build_context_from_state(state)
         
+        orchestrator = DynamicAnalysisOrchestrator()
+
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -31,9 +33,9 @@ class DynamicTool(BaseTool):
             
         if loop and loop.is_running():
             from .base import global_executor
-            future = global_executor.submit(lambda: asyncio.run(self.orchestrator.analyze(context)))
+            future = global_executor.submit(lambda: asyncio.run(orchestrator.analyze(context)))
             res = future.result()
         else:
-            res = asyncio.run(self.orchestrator.analyze(context))
+            res = asyncio.run(orchestrator.analyze(context))
             
         return res

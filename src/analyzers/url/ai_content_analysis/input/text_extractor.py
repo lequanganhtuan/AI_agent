@@ -18,8 +18,12 @@ def extract_text(html: str) -> str:
         comment.extract()
 
     # Strip structural and executable non-text tags
-    for tag in soup(["script", "style", "noscript", "svg", "canvas"]):
+    for tag in soup(["script", "style", "noscript", "svg", "canvas", "header", "footer", "nav", "iframe"]):
         tag.extract()
+
+    # Strip all attributes from all remaining tags to clean up the tree and optimize token count
+    for tag in soup.find_all(True):
+        tag.attrs = {}
 
     # Extract text with separator space to preserve boundaries between tags
     raw_text = soup.get_text(separator=" ")

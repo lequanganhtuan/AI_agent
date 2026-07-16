@@ -82,7 +82,7 @@ class InMemoryCache(BaseCache):
     async def set(self, key: str, report: FraudReport, ttl: int = 86400) -> None:
         async with self._lock:
             expiry = time.monotonic() + ttl
-            data = report.model_dump(by_alias=True)
+            data = report.model_dump(mode="json", by_alias=True)
             self._cache[key] = (data, expiry)
             logger.info(f"Successfully cached key: {key} for {ttl}s (InMemory)")
             # Save changes asynchronously in threadpool to keep it non-blocking

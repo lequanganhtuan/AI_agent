@@ -33,6 +33,19 @@ class ScreenshotCollector:
         if not page:
             raise ScreenshotCaptureError("Failed to capture screenshot: Active page is None.")
 
+        # Wait for the network to be completely idle for at least 500ms (max 5s timeout)
+        try:
+            await page.wait_for_load_state("networkidle", timeout=5000)
+        except Exception:
+            # Network idle check timed out or failed; proceed anyway
+            pass
+
+        # Give a small 1-second delay for client-side rendering/animations to settle
+        try:
+            await page.wait_for_timeout(1000)
+        except Exception:
+            pass
+
         # Ensure screenshot directory exists using pathlib
         screenshot_dir = Path(self.config.SCREENSHOT_DIRECTORY)
         try:
