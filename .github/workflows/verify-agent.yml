@@ -27,5 +27,7 @@ jobs:
           pip install pytest
 
       - name: Run Tests
+        env:
+          PYTHONPATH: .
         run: |
           pytest tests/integration/test_agent_runner.py
