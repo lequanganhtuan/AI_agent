@@ -1,5 +1,6 @@
 import logging
 from src.agents.state.enums import NodeName
+from src.core.settings import settings
 from .strategy import ErrorAction, ErrorDecision
 
 logger = logging.getLogger(__name__)
@@ -7,8 +8,8 @@ logger = logging.getLogger(__name__)
 class ErrorPolicy:
     """Centralized Error Policy engine governing Agent execution flow on failures."""
     
-    def __init__(self, max_retries: int = 3):
-        self.max_retries = max_retries
+    def __init__(self, max_retries: int | None = None):
+        self.max_retries = max_retries if max_retries is not None else settings.agent_max_retries
 
     def classify_error(self, error_message: str, retryable: bool) -> str:
         """Classifies a raw error message into a standardized category."""

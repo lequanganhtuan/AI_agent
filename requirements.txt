@@ -13,3 +13,6 @@ beautifulsoup4
 google-cloud-firestore
 google-genai
 Pillow
+langgraph
+langgraph-sdk
+pydantic-settings

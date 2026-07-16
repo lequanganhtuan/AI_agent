@@ -5,11 +5,24 @@ import logging
 
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Security, Depends, Response, Cookie
+from fastapi.security.api_key import APIKeyHeader
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
+API_KEY_NAME = "X-API-Key"
+api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+
+async def verify_api_key(
+    api_key_h: str | None = Depends(api_key_header),
+    api_key_c: str | None = Cookie(None, alias="agent_api_key")
+):
+    api_key = api_key_h or api_key_c
+    if settings.agent_api_key:
+        if not api_key or api_key != settings.agent_api_key:
+            raise HTTPException(status_code=403, detail="Forbidden: Invalid or missing API Key")
+    return api_key
 
 from src.analyzers.url.preprocessing.url_analyzer import URLAnalyzer
 from src.analyzers.url.static.static_url_analyzer import StaticURLAnalyzer
@@ -70,6 +83,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="URL Analyzer Web Demo")
 
+
 cache = get_cache()
 db_repo = FirestoreRepository()
 
@@ -81,9 +95,22 @@ async def persist_report_data(report):
 
 async def cache_and_persist_background(cache_key: str | None, report_id: str, report):
     try:
+        is_whitelisted = False
+        from urllib.parse import urlparse
+        try:
+            url_str = report.url if report.url.startswith(("http://", "https://")) else f"https://{report.url}"
+            domain_lower = urlparse(url_str).netloc.lower().replace("www.", "")
+            parts = domain_lower.split(".")
+            root_domain = ".".join(parts[-2:]) if len(parts) >= 2 else domain_lower
+            is_whitelisted = root_domain in settings.whitelist_domains_set or domain_lower in settings.whitelist_domains_set
+        except Exception:
+            pass
+
+        ttl = 2592000 if is_whitelisted else settings.cache_ttl
+        
         if cache_key:
-            await cache.set(cache_key, report, ttl=settings.cache_ttl)
-        await cache.set(report_id, report, ttl=settings.cache_ttl)
+            await cache.set(cache_key, report, ttl=ttl)
+        await cache.set(report_id, report, ttl=ttl)
     except Exception as cache_err:
         logger.error(f"Failed to set report cache in background: {str(cache_err)}")
     await persist_report_data(report)
@@ -108,7 +135,9 @@ class AnalyzeRequest(BaseModel):
     language: str = "vi"
 
 @app.get("/", response_class=HTMLResponse)
-async def read_root():
+async def read_root(response: Response):
+    if settings.agent_api_key:
+        response.set_cookie(key="agent_api_key", value=settings.agent_api_key, httponly=True)
     index_path = os.path.join(static_dir, "index.html")
     if os.path.exists(index_path):
         with open(index_path, "r", encoding="utf-8") as f:
@@ -116,20 +145,21 @@ async def read_root():
     return "<h1>Static directory not found!</h1>"
 
 @app.get("/details", response_class=HTMLResponse)
-async def read_details():
+async def read_details(response: Response):
+    if settings.agent_api_key:
+        response.set_cookie(key="agent_api_key", value=settings.agent_api_key, httponly=True)
     details_path = os.path.join(static_dir, "details.html")
     if os.path.exists(details_path):
         with open(details_path, "r", encoding="utf-8") as f:
             return f.read()
     return "<h1>Details template not found!</h1>"
 
-
 @app.post("/api/analyze")
-async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
+async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks, _api_key: str = Depends(verify_api_key)):
     try:
         url_lower = req.url.lower().strip()
-        
-        # Mock scenario interception for Web UI demonstration
+          # Mock scenario interception for Web UI demonstration
+        """
         if "scenario" in url_lower and ".test" in url_lower:
             from src.core.models import (
                 ValidationResult, URLComponents, URLMetadata, StaticAnalysisResult, StaticRiskAnalysis,
@@ -365,7 +395,7 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
                     system_prompt=mock_system_prompt,
                     user_prompt=mock_user_prompt
                 )
-
+ 
             context = AnalysisContext(
                 validation=val_res,
                 static=static_res,
@@ -386,6 +416,7 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks):
                 report
             )
             return report
+        """
 
         url_analyzer = URLAnalyzer()
         
@@ -439,7 +470,8 @@ async def get_scan_history(
     limit: int = 20,
     search: str | None = None,
     verdict: str | None = None,
-    risk: str | None = None
+    risk: str | None = None,
+    _api_key: str = Depends(verify_api_key)
 ):
     try:
         # Check DB first
@@ -488,7 +520,7 @@ async def get_scan_history(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/history/{scan_id}")
-async def get_historical_scan(scan_id: str):
+async def get_historical_scan(scan_id: str, _api_key: str = Depends(verify_api_key)):
     try:
         # Check cache first
         cached_report = await cache.get(scan_id)

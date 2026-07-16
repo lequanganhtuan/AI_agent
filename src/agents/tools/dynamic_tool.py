@@ -32,10 +32,9 @@ class DynamicTool(BaseTool):
             loop = None
             
         if loop and loop.is_running():
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(lambda: asyncio.run(orchestrator.analyze(context)))
-                res = future.result()
+            from .base import global_executor
+            future = global_executor.submit(lambda: asyncio.run(orchestrator.analyze(context)))
+            res = future.result()
         else:
             res = asyncio.run(orchestrator.analyze(context))
             
