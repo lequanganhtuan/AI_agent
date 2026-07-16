@@ -262,8 +262,15 @@ flowchart TD
 
 ---
 
-### Phase 6: Persistence & Cache Management
-*   **Dual-Layer Cache**: Searches for cache keys under a prefix namespace (`scan:{cache_key}`) with an async Redis manager or falls back to an local `InMemoryCache` using monotonic clocks to prevent clock-drift issues.
+### Phase 6: Persistence & 2-Tier Caching System
+*   **2-Tier Cache with Firestore Fallback**:
+    *   **Tier 1 (In-Memory)**: Looks up URL cache keys in a monotonic clock-safe local `InMemoryCache`.
+    *   **Tier 2 (Firestore)**: If Tier 1 misses, it queries Google Cloud Firestore for existing reports.
+    *   **Dynamic Expiration Checks**: If a Firestore record exists, its age (`scanned_at`) is evaluated in Python:
+        *   **Whitelisted Domains**: Stays fresh for **30 days** (`2,592,000` seconds).
+        *   **Normal Domains**: Stays fresh for **24 hours** (`CACHE_TTL` or 1 day).
+        *   If the record is within its freshness deadline, it is re-populated into the In-Memory cache and returned immediately—avoiding expensive external API calls and browser executions.
+        *   If expired, a fresh analysis workflow is automatically executed, overwriting the old database entry.
 *   **Firestore Database History**: Persists complete, structured `FraudReport` documents in Google Cloud Firestore as a background task.
 *   **Scan History Sidebar**: Features a sliding side drawer to fetch, search, and filter past scans locally, reloading historical records instantly.
 
@@ -320,10 +327,19 @@ GEMINI_API_KEY=your_gemini_api_key_here
 
 # Storage & Cache (Phase 6)
 FIRESTORE_PROJECT_ID=your_gcp_project_id
-FIRESTORE_DATABASE_ID=your_firestore_database_id
+FIRESTORE_DATABASE_ID=(default)                     # Use (default) for standard emulators or custom DB
 GOOGLE_APPLICATION_CREDENTIALS=D:\Study\test\Audio\ai_engineer\DP\week10\AI_agent\your-service-account-key.json
-REDIS_URL=redis://localhost:6379
-CACHE_TTL=86400
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080               # Set when running emulators locally
+CACHE_TTL=86400                                      # TTL for normal domain caches (in seconds)
+
+# Whitelist Configuration (Supports multi-line formatting & comments)
+SAFE_WHITELIST_DOMAINS="
+google.com
+gmail.com
+youtube.com
+facebook.com
+# vietname.vn
+"
 ```
 
 ---
@@ -360,9 +376,14 @@ To help test the scoring engine and pipeline robustness, the Web App features mo
 | **Scenario 6** | `*scenario6*.test` | Cache Hit simulation. | `MEDIUM` Risk, instant payload return. |
 | **Scenario 7** | `*scenario7*.test` | All threat buckets compounded. | `HIGH` Risk, maximum composite score of `80`. |
 
-To run the pipeline verification scenario unit tests:
+To run the pipeline verification scenario tests:
 ```bash
-pytest tests/run_scenarios.py
+# Windows PowerShell
+$env:PYTHONPATH="."
+venv\Scripts\python tests/run_scenarios.py
+
+# macOS/Linux Terminal
+PYTHONPATH=. venv/bin/python tests/run_scenarios.py
 ```
 
 ---
