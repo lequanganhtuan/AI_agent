@@ -92,12 +92,13 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const threatRisk = data.threat_intel?.risk || data.threat_intelligence?.risk || data.static?.risk;
 
-        // Fallbacks (composite score of AI, else fall back to static/threat)
-        const score = typeof risk.score === 'number' 
-            ? Math.round(risk.score) 
-            : (threatRisk && typeof threatRisk.score === 'number' ? Math.round(threatRisk.score) : 0);
+        // Unified composite score from backend
+        const score = typeof data.score === 'number'
+            ? Math.round(data.score)
+            : (typeof risk.score === 'number' ? Math.round(risk.score) : (threatRisk && typeof threatRisk.score === 'number' ? Math.round(threatRisk.score) : 0));
 
-        const verdict = content.recommended_action 
+        const verdict = data.verdict 
+            || content.recommended_action 
             || (threatRisk && threatRisk.verdict) 
             || (score >= 70 ? 'BLOCK' : score >= 40 ? 'WARN' : 'ALLOW');
 
@@ -132,6 +133,10 @@ document.addEventListener('DOMContentLoaded', () => {
             summaryVerdict.style.background = 'rgba(59, 130, 246, 0.15)';
             summaryVerdict.style.color = '#3b82f6';
             summaryVerdict.style.border = '1px solid rgba(59, 130, 246, 0.3)';
+        } else if (verdict === 'SUSPICIOUS') {
+            summaryVerdict.style.background = 'rgba(245, 158, 11, 0.15)';
+            summaryVerdict.style.color = '#f59e0b';
+            summaryVerdict.style.border = '1px solid rgba(245, 158, 11, 0.3)';
         } else {
             summaryVerdict.style.background = 'rgba(16, 185, 129, 0.15)';
             summaryVerdict.style.color = '#10b981';

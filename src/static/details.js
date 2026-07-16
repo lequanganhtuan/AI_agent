@@ -53,8 +53,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function displayResults(data) {
         // 1. COMPOUNDED RISK SCORE & VERDICT RESOLUTION
         const threatRisk = data.threat_intelligence?.risk || data.threat_intel?.risk;
-        const score = threatRisk ? threatRisk.score : 0;
-        const riskLevel = (threatRisk ? threatRisk.risk_level : 'low').toLowerCase();
+        const score = typeof data.score === 'number' ? Math.round(data.score) : (threatRisk ? threatRisk.score : 0);
+        const riskLevel = (data.risk_level || (threatRisk ? threatRisk.risk_level : 'low')).toLowerCase();
 
         // Animate the risk score gauge circle
         setTimeout(() => {
@@ -68,14 +68,19 @@ document.addEventListener('DOMContentLoaded', () => {
         riskLevelText.textContent = riskLevel;
 
         // Apply action badge styling
-        const action = data.ai?.content?.recommended_action || (score >= 70 ? 'BLOCK' : score >= 40 ? 'WARN' : 'ALLOW');
+        const action = data.verdict || data.ai?.content?.recommended_action || (score >= 70 ? 'BLOCK' : score >= 40 ? 'WARN' : 'ALLOW');
         verdictBadge.textContent = action;
         verdictBadge.className = 'status-pill';
+
         if (action === 'BLOCK') {
             verdictBadge.style.background = 'rgba(239, 68, 68, 0.15)';
             verdictBadge.style.color = '#ef4444';
             verdictBadge.style.border = '1px solid rgba(239, 68, 68, 0.3)';
         } else if (action === 'WARN') {
+            verdictBadge.style.background = 'rgba(245, 158, 11, 0.15)';
+            verdictBadge.style.color = '#f59e0b';
+            verdictBadge.style.border = '1px solid rgba(245, 158, 11, 0.3)';
+        } else if (action === 'SUSPICIOUS') {
             verdictBadge.style.background = 'rgba(245, 158, 11, 0.15)';
             verdictBadge.style.color = '#f59e0b';
             verdictBadge.style.border = '1px solid rgba(245, 158, 11, 0.3)';

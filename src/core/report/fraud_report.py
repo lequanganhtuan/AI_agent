@@ -33,6 +33,11 @@ class FraudReport(BaseModel):
     threat_intelligence: ThreatIntelligenceResult = Field(alias="threat_intel")
     dynamic: Optional[DynamicAnalysisResult] = None
     ai: Optional[FraudAIAnalysisReport] = None
+    expire_at: Optional[datetime] = None
+
+    score: int = 0
+    risk_level: str = "low"
+    verdict: str = "ALLOW"
 
     model_config = ConfigDict(
         populate_by_name=True
