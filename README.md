@@ -25,8 +25,14 @@ AI_agent/
 ├── .env                       # Environment configurations (API keys & endpoints)
 ├── .gitignore                 # Specifies intentionally untracked files
 ├── requirements.txt           # Python application dependencies
-├── run_dynamic_scenarios.py   # Executable script simulating live dynamic crawls
-├── test.ipynb                 # Interactive Jupyter notebook for prototyping
+├── configs/                   # Configuration files (GCP JSON credentials, etc.)
+├── scratch/                   # Developer playground & execution scripts
+│   ├── demo_agent.py          # Quick CLI test agent runner
+│   ├── run_dynamic_scenarios.py # Automated crawling scenarios script
+│   ├── test.ipynb             # Interactive Jupyter notebook for prototyping
+│   ├── test.py                # LangGraph prototyping script
+│   ├── test_keys.py           # API Key verification script
+│   └── test_analyze_api.py    # Manual API endpoint testing script
 ├── artifacts/                 # Saved execution assets (e.g., screenshots, logs)
 │   └── scenarios_screenshots/
 ├── src/                       # Primary Source Code Directory
@@ -36,11 +42,10 @@ AI_agent/
 │   │   ├── exceptions.py      # Base application errors
 │   │   ├── models.py          # Unified Pydantic schema declarations
 │   │   ├── settings.py        # Pydantic Settings Manager (loads .env)
-│   │   ├── cache/             # Dual-layer Caching Engine
+│   │   ├── cache/             # Caching Engine
 │   │   │   ├── base.py        # Cache interfaces
 │   │   │   ├── memory_cache.py# Monotonic clock-safe local memory cache
-│   │   │   ├── redis_cache.py # Namespaced async Redis implementation
-│   │   │   └── factory.py     # Cache provider fallback factory
+│   │   │   └── factory.py     # Cache provider factory
 │   │   └── database/          # Persistence Layer
 │   │       └── firestore_repository.py # Google Cloud Firestore adapter
 │   ├── dns/                   # Custom DNS Resolution Modules
@@ -132,12 +137,12 @@ sequenceDiagram
         App->>App: Compose final FraudReport Pydantic Model
         App->>DB: Save Scan Ledger (Phase 6 Background Task)
         App->>Cache: Save scan:{cache_key} (Set TTL)
+        App-->>User: HTTP 200 OK (Render detailed dashboards)
     end
 ```
 
 > [!TIP]
 > For a highly detailed architectural flowchart illustrating internal file names, class definitions, parallel execution branches, error failovers, and Firestore persistence, refer to the [DETAILED_WORKFLOW.md](DETAILED_WORKFLOW.md) guide.
-
 ### 📋 Technical Execution Sequence
 
 | Step | System Component | Core Execution Process | Input / Output Formats | Failure Recovery / Isolation |
@@ -335,7 +340,7 @@ Open your browser and navigate to `http://127.0.0.1:8000`.
 ### Running Dynamic Scenario Crawler (Terminal)
 To run automated crawling scenarios directly from the CLI:
 ```bash
-python run_dynamic_scenarios.py
+python scratch/run_dynamic_scenarios.py
 ```
 This runs 11 different test URLs (Google, Github login flow, TinyURL redirect, active websocket connections, faulty paths, private IPs, etc.) and exports screenshot evidence into `artifacts/scenarios_screenshots/`.
 
