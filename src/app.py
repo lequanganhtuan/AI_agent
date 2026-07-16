@@ -2,6 +2,10 @@ import os
 import sys
 import asyncio
 import logging
+from dotenv import load_dotenv
+
+# Load env variables into os.environ before anything else (crucial for FIRESTORE_EMULATOR_HOST)
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env"))
 
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
