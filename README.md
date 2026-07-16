@@ -10,10 +10,10 @@ By combining **static lexical heuristics**, **brand-spoofing detection**, **mult
 
 *   **Asynchronous Processing**: Powered by Python's `asyncio` to execute intensive external APIs and sandboxed browser navigations concurrently, achieving low-latency verdicts.
 *   **Decoupled Multi-Phase Architecture**: Separates parsing, static features, external threat databases, live page behavior, and AI evaluation into independent layers.
-*   **Resilient Threat Intel Orchestrator**: Queries multiple industry-standard security APIs (VirusTotal, Google Safe Browsing, PhishTank, URLhaus, AbuseIPDB, URLScan) in parallel with automatic timeouts, error isolation, and caching.
+*   **Resilient Threat Intel Orchestrator**: Queries multiple industry-standard security APIs (VirusTotal, Google Safe Browsing, URLhaus, AbuseIPDB, URLScan) in parallel with automatic timeouts, error isolation, and caching.
 *   **Headless Dynamic Analysis**: Spawns an automated Playwright Chromium instance to capture redirect chains, sniff network traffic, audit DOM inputs (for credential harvesting/OTPs), execute script telemetry, and capture screenshot evidence.
 *   **Google Gemini AI Content Audit**: Uses Google's generative AI (with primary and backup fallback model pipelines) to analyze visual, textual, and behavioral metadata, generating natural language reasoning and safety recommendations.
-*   **Dual-Layer Caching & Persistent Ledger**: Automatically caches scan results using namespaced Redis keys or a robust local in-memory clock-safe cache. Integrates serverless Google Cloud Firestore to maintain a searchable, filterable historical record of scans.
+*   **2-Tier Caching & Persistent Ledger**: Automatically caches scan results using a robust 2-Tier Caching System (In-Memory + Firestore Fallback) with dynamic expiration clocks. Integrates serverless Google Cloud Firestore to maintain a searchable, filterable historical record of scans.
 *   **Interactive Web UI Dashboard**: Renders real-time risk gauges, redirect paths, screenshots, diagnostic copy-paste prompt testers, and a slide-out Scan History drawer.
 
 ---
@@ -293,8 +293,7 @@ flowchart LR
 
 ### Prerequisites
 *   Python 3.10+
-*   Google Cloud Firestore Database
-*   Redis server (optional, for Redis-backed caching)
+*   Google Cloud Firestore Database (or local Firebase Emulator Suite)
 
 ### 1. Clone & Setup Virtual Environment
 ```bash
