@@ -462,7 +462,7 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks, _a
             report
         )
         
-        # Trigger reload: cache reset complete.
+        # Trigger reload: cache reset complete (v2).
         return report
         
     except Exception as e:
