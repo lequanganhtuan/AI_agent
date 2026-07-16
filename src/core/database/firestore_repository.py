@@ -60,6 +60,23 @@ class FirestoreRepository(BaseRepository):
             logger.error(f"Failed to save FraudReport to Firestore: {str(e)}", exc_info=True)
             raise
 
+    async def get_report_by_cache_key(self, cache_key: str) -> Optional[FraudReport]:
+        """Queries Firestore to find an existing FraudReport matching a cache key.
+        
+        Returns the FraudReport object if found, otherwise None.
+        """
+        try:
+            query = self.client.collection(self.collection_name).where("cache_key", "==", cache_key).limit(1)
+            docs = await query.get()
+            if docs:
+                data = docs[0].to_dict()
+                if data:
+                    return FraudReport.model_validate(data)
+            return None
+        except Exception as e:
+            logger.error(f"Failed to query FraudReport by cache key from Firestore: {str(e)}", exc_info=True)
+            return None
+
     async def get_recent_reports(
         self,
         limit: int = 20,

@@ -434,10 +434,51 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks, _a
         # Caching check
         cache_key = validation_result.cache_key
         if cache_key:
+            # 1st tier: check In-Memory
             cached_report = await cache.get(cache_key)
             if cached_report:
-                logger.info(f"Returning cached FraudReport for URL: {req.url}")
+                logger.info(f"Returning cached FraudReport for URL (InMemory): {req.url}")
                 return cached_report
+
+            # 2nd tier: check Firestore
+            try:
+                db_report = await db_repo.get_report_by_cache_key(cache_key)
+                if db_report:
+                    # Check age of db_report
+                    scanned_at = db_report.scanned_at
+                    from datetime import datetime, timezone
+                    now = datetime.now(timezone.utc)
+                    if scanned_at.tzinfo is None:
+                        scanned_at = scanned_at.replace(tzinfo=timezone.utc)
+                    
+                    age_seconds = (now - scanned_at).total_seconds()
+                    
+                    # Check if domain is whitelisted
+                    is_whitelisted = False
+                    try:
+                        from urllib.parse import urlparse
+                        url_str = req.url if req.url.startswith(("http://", "https://")) else f"https://{req.url}"
+                        domain_lower = urlparse(url_str).netloc.lower().replace("www.", "")
+                        parts = domain_lower.split(".")
+                        root_domain = ".".join(parts[-2:]) if len(parts) >= 2 else domain_lower
+                        is_whitelisted = root_domain in settings.whitelist_domains_set or domain_lower in settings.whitelist_domains_set
+                    except Exception:
+                        pass
+
+                    max_age = 2592000 if is_whitelisted else settings.cache_ttl
+                    
+                    if age_seconds < max_age:
+                        logger.info(f"Returning cached FraudReport for URL (Firestore): {req.url}")
+                        # Re-populate InMemory Cache with remaining TTL
+                        ttl = int(max_age - age_seconds)
+                        if ttl > 0:
+                            await cache.set(cache_key, db_report, ttl=ttl)
+                            await cache.set(db_report.id, db_report, ttl=ttl)
+                        return db_report
+                    else:
+                        logger.info(f"Found expired FraudReport in Firestore for URL (age: {age_seconds:.1f}s, limit: {max_age}s): {req.url}")
+            except Exception as db_cache_err:
+                logger.error(f"Failed checking Firestore cache: {str(db_cache_err)}")
 
         # 2. Run the agent workflow
         from src.agents.runner import AgentRunner
