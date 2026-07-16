@@ -57,10 +57,9 @@ class URLScanProvider(BaseThreatProvider[URLScanAnalysis]):
         self._base_url = base_url.rstrip("/")
         self._submit_url_path = submit_endpoint
         self._result_url_path = result_endpoint
-
         # Cấu hình Polling Lifecycle tối đa
         self._poll_interval = ThreatIntelConfig.URLSCAN_POLL_INTERVAL_SECONDS
-        self._max_poll_time = 10  # Enforced 10 seconds timeout limit to optimize request latency
+        self._max_poll_time = 15  # Extended to 15 seconds to allow URLScan submission processing
         self._max_poll_attempts = (
             self._max_poll_time // self._poll_interval if self._poll_interval > 0 else 1
         )
