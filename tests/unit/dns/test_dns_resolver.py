@@ -19,64 +19,20 @@ from src.dns.resolver import DNSResolver
 @pytest.mark.anyio
 class TestCache:
 
-    async def test_cache_disabled_no_redis_url(self):
-        """DNSCache falls back gracefully when REDIS_URL is not set."""
-        with patch("src.dns.cache.settings") as mock_settings:
-            mock_settings.redis_url = None
-            cache = DNSCache()
-            assert cache._enabled is False
-            assert await cache.get("example.com") is None
-            # Set does not throw
-            await cache.set("example.com", ["1.1.1.1"])
-
-    async def test_cache_disabled_redis_connection_error(self):
-        """DNSCache handles Redis connection errors gracefully during initialization."""
-        with patch("src.dns.cache.settings") as mock_settings, \
-             patch("redis.asyncio.Redis.from_url") as mock_redis_conn:
-            mock_settings.redis_url = "redis://localhost:6379"
-            mock_redis_conn.side_effect = Exception("Connection Refused")
-
-            cache = DNSCache()
-            assert cache._enabled is False
-            assert await cache.get("example.com") is None
-
     async def test_cache_get_and_set_success(self):
-        """DNSCache correctly writes and reads from Redis."""
-        with patch("src.dns.cache.settings") as mock_settings, \
-             patch("redis.asyncio.Redis.from_url") as mock_redis_conn:
-            mock_settings.redis_url = "redis://localhost:6379"
-            mock_client = MagicMock()
-            mock_client.ping = AsyncMock(return_value=True)
-            mock_client.get = AsyncMock(return_value='["1.2.3.4", "5.6.7.8"]')
-            mock_client.set = AsyncMock()
-            mock_redis_conn.return_value = mock_client
+        """DNSCache correctly writes and reads from local memory."""
+        cache = DNSCache()
+        assert await cache.get("example.com") is None
 
-            cache = DNSCache()
-            assert cache._enabled is True
-            assert await cache.get("example.com") == ["1.2.3.4", "5.6.7.8"]
-            
-            # Write to cache
-            await cache.set("example.com", ["1.2.3.4"], ttl=60)
-            mock_client.set.assert_called_once_with("dns_cache:example.com", '["1.2.3.4"]', ex=60)
+        # Write to cache
+        await cache.set("example.com", ["1.2.3.4"], ttl=60)
+        assert await cache.get("example.com") == ["1.2.3.4"]
 
-    async def test_cache_failures_handled_gracefully(self):
-        """DNSCache handles post-init Redis query failures without throwing exceptions."""
-        with patch("src.dns.cache.settings") as mock_settings, \
-             patch("redis.asyncio.Redis.from_url") as mock_redis_conn:
-            mock_settings.redis_url = "redis://localhost:6379"
-            mock_client = MagicMock()
-            mock_client.ping = AsyncMock(return_value=True)
-            mock_client.get = AsyncMock(side_effect=Exception("Redis crash"))
-            mock_client.set = AsyncMock(side_effect=Exception("Redis crash"))
-            mock_redis_conn.return_value = mock_client
-
-            cache = DNSCache()
-            assert cache._enabled is True
-            
-            # Read fails gracefully
-            assert await cache.get("example.com") is None
-            # Write fails gracefully
-            await cache.set("example.com", ["1.2.3.4"])
+    async def test_cache_expiration(self):
+        """DNSCache respects TTL and expires values."""
+        cache = DNSCache()
+        await cache.set("example.com", ["1.2.3.4"], ttl=-1)
+        assert await cache.get("example.com") is None
 
 
 # =========================================================================

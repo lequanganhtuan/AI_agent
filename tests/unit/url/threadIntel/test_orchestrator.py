@@ -32,6 +32,7 @@ def validation_result() -> ValidationResult:
             domain="example",
             tld="com",
             path="/malicious",
+            query="",
             params={},
             full_domain="example.com"
         ),
@@ -41,12 +42,7 @@ def validation_result() -> ValidationResult:
 
 @pytest.fixture
 def orchestrator() -> ThreatIntelOrchestrator:
-    with patch("src.analyzers.url.threat_intelligence.orchestrator.settings") as mock_settings, \
-         patch("src.analyzers.url.threat_intelligence.orchestrator.aioredis.Redis.from_url") as mock_redis:
-        mock_settings.redis_url = "redis://localhost:6379"
-        mock_client = MagicMock()
-        mock_redis.return_value = mock_client
-        return ThreatIntelOrchestrator()
+    return ThreatIntelOrchestrator()
 
 
 @pytest.mark.anyio
@@ -63,16 +59,14 @@ class TestThreatIntelOrchestrator:
             risk=ThreatIntelligenceRisk(score=10, risk_level="low")
         )
         
-        # Serialize model output
-        serialized = dummy_result.model_dump_json().encode("utf-8")
+        # Populate local cache
+        cache_key = orchestrator._get_cache_key(validation_result)
+        await orchestrator._cache_result(cache_key, dummy_result)
         
-        with patch.object(orchestrator._redis_client, "get", AsyncMock(return_value=serialized)) as mock_get, \
-             patch.object(orchestrator, "_run_providers_parallel") as mock_run:
-            
+        with patch.object(orchestrator, "_run_providers_parallel") as mock_run:
             res = await orchestrator.analyze_url(validation_result)
             assert isinstance(res, ThreatIntelligenceResult)
             assert res.risk.score == 10
-            mock_get.assert_called_once()
             mock_run.assert_not_called()
 
     async def test_orchestrator_dns_resolution_triggered(self, orchestrator, validation_result):
@@ -81,8 +75,7 @@ class TestThreatIntelOrchestrator:
         
         mock_dns = DNSResult(domain="example.com", ips=["8.8.8.8"], resolved=True)
         
-        with patch.object(orchestrator._redis_client, "get", AsyncMock(return_value=None)), \
-             patch.object(orchestrator.dns_resolver, "resolve", AsyncMock(return_value=mock_dns)) as mock_dns_resolve, \
+        with patch.object(orchestrator.dns_resolver, "resolve", AsyncMock(return_value=mock_dns)) as mock_dns_resolve, \
              patch.object(orchestrator, "_run_providers_parallel", AsyncMock(return_value=({
                  "virustotal": VirusTotalAnalysis(),
                  "google_safe_browsing": GoogleSafeBrowsingAnalysis(),
@@ -104,10 +97,7 @@ class TestThreatIntelOrchestrator:
             "ip_reputation": AbuseIPDBAnalysis(),
         }
 
-        with patch.object(orchestrator._redis_client, "get", AsyncMock(return_value=None)), \
-             patch.object(orchestrator, "_run_providers_parallel", AsyncMock(return_value=(provider_returns, 1.0))), \
-             patch.object(orchestrator._redis_client, "set", AsyncMock()) as mock_set:
-            
+        with patch.object(orchestrator, "_run_providers_parallel", AsyncMock(return_value=(provider_returns, 1.0))):
             res = await orchestrator.analyze_url(validation_result)
             assert isinstance(res, ThreatIntelligenceResult)
             # Blacklist hits: vt=1, gsb=1 -> BLACKLIST_MATCH triggered -> score = 100
@@ -121,8 +111,8 @@ class TestThreatIntelOrchestrator:
             assert res.risk.confidence == 1.0
 
             # Verify saved to cache
-            from unittest.mock import ANY
-            mock_set.assert_any_call('threat_intelfull_threat_intel:test_cache_key_123', ANY, ex=86400)
+            cache_key = orchestrator._get_cache_key(validation_result)
+            assert cache_key in orchestrator._cache
 
     async def test_orchestrator_provider_failure_isolation(self, orchestrator, validation_result):
         """Failures in individual providers do not fail the overall pipeline lookup."""
@@ -133,12 +123,11 @@ class TestThreatIntelOrchestrator:
              patch.object(orchestrator.urlhaus, "lookup", AsyncMock(return_value=URLHausAnalysis(query_status="no_match"))), \
              patch.object(orchestrator.ip_reputation, "lookup", AsyncMock(return_value=AbuseIPDBAnalysis())):
              
-             with patch.object(orchestrator._redis_client, "get", AsyncMock(return_value=None)):
-                  res = await orchestrator.analyze_url(validation_result)
-                  # Overall request finishes successfully with fallback VT values
-                  assert isinstance(res, ThreatIntelligenceResult)
-                  assert res.virustotal.malicious == 0
-                  assert res.risk.confidence == 0.8  # 4 out of 5 succeeded
+             res = await orchestrator.analyze_url(validation_result)
+             # Overall request finishes successfully with fallback VT values
+             assert isinstance(res, ThreatIntelligenceResult)
+             assert res.virustotal.malicious == 0
+             assert res.risk.confidence == 0.8  # 4 out of 5 succeeded
 
     async def test_orchestrator_phase_3_flow_run(self, orchestrator, validation_result):
         """Verify the full Phase 3 end-to-end execution flow with normalization, scoring, and confidence checks."""
@@ -154,9 +143,7 @@ class TestThreatIntelOrchestrator:
              patch.object(orchestrator.google_safe_browsing, "lookup", AsyncMock(return_value=mock_gsb)), \
              patch.object(orchestrator.urlscan, "lookup", AsyncMock(return_value=mock_urlscan)), \
              patch.object(orchestrator.urlhaus, "lookup", AsyncMock(return_value=mock_urlhaus)), \
-             patch.object(orchestrator.ip_reputation, "lookup", AsyncMock(return_value=mock_ab)), \
-             patch.object(orchestrator._redis_client, "get", AsyncMock(return_value=None)), \
-             patch.object(orchestrator._redis_client, "set", AsyncMock()):
+             patch.object(orchestrator.ip_reputation, "lookup", AsyncMock(return_value=mock_ab)):
 
             # 3. Trigger the full Phase 3 execution flow run
             result = await orchestrator.analyze_url(validation_result)

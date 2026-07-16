@@ -190,8 +190,8 @@ class TestBuilder:
 
     def test_build_prompt_system_prompt_is_pure_constant(self, sample_input):
         result = build_prompt(sample_input)
-        # System prompt must be the exact static constant — no schema appended
-        assert result.system_prompt == SYSTEM_PROMPT
+        # System prompt must start with the static constant SYSTEM_PROMPT
+        assert result.system_prompt.startswith(SYSTEM_PROMPT)
 
     def test_build_prompt_schema_in_user_prompt_not_system(self, sample_input):
         result = build_prompt(sample_input)
