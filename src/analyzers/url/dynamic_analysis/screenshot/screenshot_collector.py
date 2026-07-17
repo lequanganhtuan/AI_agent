@@ -70,7 +70,7 @@ class ScreenshotCollector:
 
         try:
             await page.screenshot(**kwargs)
-            return ScreenshotResult(screenshot_path=str(screenshot_path))
+            return ScreenshotResult(screenshot_path=screenshot_path.as_posix())
         except PlaywrightError as e:
             logger.exception("[ScreenshotCollector] Playwright error during screenshot capture")
             raise ScreenshotCaptureError(f"Playwright screenshot failed: {str(e)}") from e

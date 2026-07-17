@@ -133,10 +133,10 @@ def test_ai_node_failure_path():
 
     state = runner.run("https://ai-fails.net")
     
-    assert state.workflow.status == ExecutionStatus.SUCCESS  # Workflow degrades gracefully
+    assert state.workflow.status == ExecutionStatus.FAILED  # AI failure is now fatal!
     assert NodeName.AI in state.workflow.visited_nodes
-    assert NodeName.REPORT in state.workflow.visited_nodes
-    assert state.report is not None  # Report generated successfully without AI details
+    assert NodeName.REPORT not in state.workflow.visited_nodes
+    assert state.report is None
     assert len(state.telemetry.errors) == 1
     assert state.telemetry.errors[0].node == str(NodeName.AI)
     assert state.telemetry.errors[0].error_type == "RateLimitError"
@@ -156,8 +156,8 @@ def test_whitelist_exit_path():
     assert state.report.verdict == "ALLOW"
     assert state.report.ai.content.recommended_action == "ALLOW"
 
-def test_suspicious_classification_path():
-    """E2E Test: A clean/new domain without prior threat/static indicators gets classified as SUSPICIOUS (score=35)."""
+def test_unknown_classification_path():
+    """E2E Test: A clean/new domain without prior threat/static indicators gets classified as UNKNOWN (score=1)."""
     runner = AgentRunner()
     
     class MockCleanThreatTool(BaseTool):
@@ -205,8 +205,8 @@ def test_suspicious_classification_path():
     
     assert state.workflow.status == ExecutionStatus.SUCCESS
     assert state.report is not None
-    assert state.report.score == 35
-    assert state.report.risk_level == "suspicious"
-    assert state.report.verdict == "SUSPICIOUS"
+    assert state.report.score == 1
+    assert state.report.risk_level == "unknown"
+    assert state.report.verdict == "UNKNOWN"
     assert state.report.ai.content.recommended_action == "MONITOR"
     assert "no established reputation" in state.report.ai.content.summary.lower()

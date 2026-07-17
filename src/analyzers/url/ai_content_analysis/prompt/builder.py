@@ -29,22 +29,25 @@ def build_prompt(analysis_input: AIAnalysisInput) -> PromptRequest:
     lang_name = "Vietnamese" if getattr(analysis_input, "language", "vi") == "vi" else "English"
     custom_system_prompt = (
         SYSTEM_PROMPT +
-        f"\n\nIMPORTANT LANGUAGE REQUIREMENT:\n"
+        f"\n\nIMPORTANT LANGUAGE & LOCALIZATION REQUIREMENT:\n"
         f"You MUST write the output values for the following JSON fields in the requested language: {lang_name}.\n"
         f"- `website_purpose`\n"
         f"- `detected_brand` (if localized)\n"
         f"- `summary`\n"
         f"- `reasoning` (all bullet items must be in {lang_name})\n"
         f"- `findings` (all bullet items must be in {lang_name})\n"
-        f"- The `description` of each signal in the `signals` list.\n\n"
+        f"- The `description` of each signal in the `signals` list.\n"
+        f"CRITICAL: Do not just translate. You MUST localize the threat analysis. For example, if {lang_name} is Vietnamese, map the discovered threat patterns to well-known local scam archetypes (e.g., 'lừa đảo việc nhẹ lương cao', 'giật đơn hàng ảo', 'nhiệm vụ nhận hoa hồng', 'mạo danh sàn thương mại điện tử Lazada/Shopee/Tiki').\n\n"
         f"IMPORTANT LENGTH LIMITATION:\n"
         f"To ensure a concise report, you MUST limit the `reasoning` list, `findings` list, and the `signals` list "
-        f"to a MAXIMUM of 5 of the most important items each. Do not exceed 5 items under any circumstances.\n\n"
+        f"to a MINIMUM of 3 and a MAXIMUM of 5 of the most critical items each. Do not exceed 5 items under any circumstances.\n\n"
+        f"IMPORTANT EVIDENCE SYNTAX FOR FINDINGS:\n"
+        f"Each item in the `findings` list MUST start with a concrete physical asset, text, or visual layout found on the site (e.g., 'Tên miền...', 'Logo...', 'Bảng hiển thị...', 'Giao diện...') and then directly link it to the immediate visual mismatch or security anomaly. Do not write generic assumptions in this field.\n\n"
         f"IMPORTANT SEPARATION OF CONCERNS:\n"
         f"You MUST strictly differentiate between `reasoning` and `findings` to avoid redundancy:\n"
-        f"- `reasoning`: Explain the safety/threat logic and psychological intent (e.g., 'The typosquatted domain combined with login forms attempts to trick users into entering credentials').\n"
-        f"- `findings`: List only concrete, physical visual or textual evidence discovered on the page (e.g., 'Cloned PayPal logo', 'Form input labeled password', 'Countdown timer')."
-    )
+        f"- `reasoning`: Explain the safety/threat logic, psychological manipulation tactics, and hidden intent (e.g., 'The typosquatted domain combined with e-commerce products attempts to trick users into task-based financial scams').\n"
+        f"- `findings`: List only concrete, physical visual or textual evidence discovered on the page (e.g., 'Cloned Lazada logo', 'Form action pointing to suspicious IP', 'A rolling popup table showing fake recent user commissions')."
+)
 
     # 4. Construct and return PromptRequest
     return PromptRequest(

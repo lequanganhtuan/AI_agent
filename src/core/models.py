@@ -184,6 +184,7 @@ class ThreatIntelligenceRisk(BaseModel):
     triggered_signals: list[str] = Field(default_factory=list)
     provider_hits: dict[str, bool] = Field(default_factory=dict)
     confidence: float = 1.0
+    has_vtrust_report: bool = False
 
 
 class ThreatIntelligenceResult(BaseModel):

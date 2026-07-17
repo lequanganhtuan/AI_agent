@@ -100,6 +100,30 @@ class ThreatIntelOrchestrator:
         signals = self._normalize_signals(provider_data)
         risk_analysis = self._calculate_risk(signals, provider_data, confidence)
 
+        # Query VTrust database for official reports
+        has_vtrust_report = False
+        try:
+            from src.core.database.firestore_repository import FirestoreRepository
+            repo = FirestoreRepository(collection_name="reports")
+            # Query by full URL
+            query = repo.client.collection("reports").where("url", "==", normalized_url).limit(1)
+            docs = await query.get()
+            if docs:
+                has_vtrust_report = True
+                logger.info(f"[Orchestrator] Official VTrust report found for URL: {normalized_url}")
+            else:
+                # Fallback to query by domain
+                query_domain = repo.client.collection("reports").where("domain", "==", domain).limit(1)
+                docs_domain = await query_domain.get()
+                if docs_domain:
+                    has_vtrust_report = True
+                    logger.info(f"[Orchestrator] Official VTrust report found for domain: {domain}")
+        except Exception as fe:
+            logger.warning(f"[Orchestrator] Failed querying VTrust reports from Firestore: {str(fe)}")
+
+        # Assign has_vtrust_report to threat risk analysis
+        risk_analysis.has_vtrust_report = has_vtrust_report
+
         # Step 5: Build final result
         result = ThreatIntelligenceResult(
             virustotal=provider_data["virustotal"],

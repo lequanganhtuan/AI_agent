@@ -504,6 +504,14 @@ async def analyze_url(
         logger.info(f"[Concurrency] Acquiring scan semaphore. Available slots: {scan_semaphore._value}")
         async with scan_semaphore:
             logger.info(f"[Concurrency] Semaphore acquired. Executing AgentRunner for: {req.url}")
+            
+            # Double-check in-memory cache to handle queued duplicate requests for the same URL
+            if cache_key:
+                cached_report = await cache.get(cache_key)
+                if cached_report:
+                    logger.info(f"[Concurrency] Double-check in-memory cache hit inside semaphore. Bypassing scan for: {req.url}")
+                    return cached_report
+
             runner = AgentRunner()
             state = await runner.run_async(req.url, validation_result=validation_result)
             

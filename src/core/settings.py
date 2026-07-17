@@ -111,7 +111,7 @@ class Settings(BaseSettings):
     )
 
     gemini_model_name: str = Field(
-        default="gemini-2.5-flash-lite",
+        default="gemini-2.5-flash",
         alias="GEMINI_MODEL_NAME",
     )
 
