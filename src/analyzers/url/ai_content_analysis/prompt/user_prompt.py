@@ -15,10 +15,13 @@ def build_user_prompt(analysis_input: AIAnalysisInput) -> str:
 
     # --- TASK ---
     sections.append("### TASK")
-    sections.append(
-        "Analyze the following website data and provide your security assessment "
-        "as a JSON object matching the expected output schema exactly."
+    task_desc = (
+        "Analyze the following website data AND the attached screenshot of the landing page. "
+        "You MUST visually inspect the screenshot to verify brand logos, icons, banners, "
+        "and product layouts, and cross-reference them with the domain name. "
+        "Provide your security assessment as a JSON object matching the expected output schema exactly."
     )
+    sections.append(task_desc)
 
     # --- INPUT ---
     sections.append("\n### INPUT")
