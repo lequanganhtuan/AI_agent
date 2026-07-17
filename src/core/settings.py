@@ -268,6 +268,7 @@ class Settings(BaseSettings):
         default=60,
         alias="BACKEND_RATE_LIMIT_WINDOW",
     )
+
     @property
     def whitelist_domains_set(self) -> set[str]:
         import re
