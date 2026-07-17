@@ -101,13 +101,13 @@ class ReportBuilder:
 
             raw_max_score = max(threat_score, ai_score, static_score)
             
-            # Check for SUSPICIOUS Category (New or clean but unverified domains)
+            # Check for UNKNOWN Category (New or clean but unverified domains)
             if threat_score == 0 and static_score == 0 and ai_score < 20:
-                composite_score = 35
-                risk_level = "suspicious"
-                verdict = "SUSPICIOUS"
+                composite_score = 1
+                risk_level = "unknown"
+                verdict = "UNKNOWN"
                 
-                warning_msg = "Tên miền này chưa có danh tiếng established. Vui lòng cẩn trọng trước khi chia sẻ thông tin nhạy cảm. (This domain has no established reputation. Please exercise caution before sharing sensitive information.)"
+                warning_msg = "Tên miền này chưa có danh tiếng. Mọi kết quả phân tích chỉ mang tính chất tham khảo. (This domain has no established reputation. All analysis is for reference only.)"
                 if not ai_report:
                     ai_report = FraudAIAnalysisReport(
                         content=ContentAnalysisResult(
@@ -119,13 +119,13 @@ class ReportBuilder:
                             brand_confidence=0.0,
                             recommended_action=RecommendedAction.MONITOR,
                             verdict_confidence=0.5,
-                            reasoning=["Domain is not whitelisted.", "No malicious signals found in static, threat intelligence or AI content analysis.", "Classified as Suspicious due to lack of established reputation."],
+                            reasoning=["Domain is not whitelisted.", "No malicious signals found in static, threat intelligence or AI content analysis.", "Classified as Unknown due to lack of established reputation."],
                             findings=["No prior reputation or history found."]
                         ),
-                        risk=AIRisk(score=35.0, level=RiskLevel.MEDIUM, summary="SUSPICIOUS")
+                        risk=AIRisk(score=1.0, level=RiskLevel.LOW, summary="UNKNOWN")
                     )
                 else:
-                    ai_report.risk = AIRisk(score=35.0, level=RiskLevel.MEDIUM, summary="SUSPICIOUS")
+                    ai_report.risk = AIRisk(score=1.0, level=RiskLevel.LOW, summary="UNKNOWN")
                     if ai_report.content:
                         ai_report.content.recommended_action = RecommendedAction.MONITOR
                         ai_report.content.summary = warning_msg
@@ -133,18 +133,40 @@ class ReportBuilder:
             else:
                 # Standard WARN / BLOCK Category
                 composite_score = max(0, min(100, int(raw_max_score)))
-                if composite_score >= 75:
-                    risk_level = "critical"
-                    verdict = "BLOCK"
-                elif composite_score >= 40:
-                    risk_level = "high"
-                    verdict = "BLOCK"
-                elif composite_score >= 20:
+                
+                # Check for strong evidence to allow BLOCK / CRITICAL
+                has_vtrust_report = getattr(threat_intelligence.risk, "has_vtrust_report", False) if (threat_intelligence and threat_intelligence.risk) else False
+                threat_hits = sum(1 for hit in threat_intelligence.risk.provider_hits.values() if hit) if (threat_intelligence and threat_intelligence.risk) else 0
+                is_gsb_blocked = threat_intelligence.google_safe_browsing.threat_found if (threat_intelligence and threat_intelligence.google_safe_browsing) else False
+                is_urlhaus_active = (threat_intelligence.urlhaus.url_status == "online") if (threat_intelligence and threat_intelligence.urlhaus) else False
+                
+                has_strong_evidence = (
+                    has_vtrust_report or
+                    threat_hits >= 2 or
+                    is_gsb_blocked or
+                    is_urlhaus_active
+                )
+                
+                if composite_score >= 40 and not has_strong_evidence:
+                    # Downgrade to WARN
+                    composite_score = 39
                     risk_level = "medium"
                     verdict = "WARN"
+                    if ai_report and ai_report.content and ai_report.content.recommended_action == RecommendedAction.BLOCK:
+                        ai_report.content.recommended_action = RecommendedAction.WARN
                 else:
-                    risk_level = "low"
-                    verdict = "ALLOW"
+                    if composite_score >= 75:
+                        risk_level = "critical"
+                        verdict = "BLOCK"
+                    elif composite_score >= 40:
+                        risk_level = "high"
+                        verdict = "BLOCK"
+                    elif composite_score >= 20:
+                        risk_level = "medium"
+                        verdict = "WARN"
+                    else:
+                        risk_level = "low"
+                        verdict = "ALLOW"
 
         return FraudReport(
             id=doc_id,
