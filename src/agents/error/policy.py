@@ -35,9 +35,9 @@ class ErrorPolicy:
             logger.error(f"[ErrorPolicy] Fatal Validation error at {node.value}: {error_message}")
             return ErrorDecision(action=ErrorAction.STOP, error_type=error_type, message=error_message)
 
-        # 2. Store node failure is also fatal -> STOP
-        if node == NodeName.STORE:
-            logger.error(f"[ErrorPolicy] Fatal Persistence error at {node.value}: {error_message}")
+        # 2. Store node or AI node failure is also fatal -> STOP
+        if node == NodeName.STORE or node == NodeName.AI:
+            logger.error(f"[ErrorPolicy] Fatal error at {node.value}: {error_message}")
             return ErrorDecision(action=ErrorAction.STOP, error_type=error_type, message=error_message)
 
         # 3. For retryable errors, check if we can retry

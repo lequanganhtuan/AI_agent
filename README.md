@@ -10,10 +10,10 @@ By combining **static lexical heuristics**, **brand-spoofing detection**, **mult
 
 *   **Asynchronous Processing**: Powered by Python's `asyncio` to execute intensive external APIs and sandboxed browser navigations concurrently, achieving low-latency verdicts.
 *   **Decoupled Multi-Phase Architecture**: Separates parsing, static features, external threat databases, live page behavior, and AI evaluation into independent layers.
-*   **Resilient Threat Intel Orchestrator**: Queries multiple industry-standard security APIs (VirusTotal, Google Safe Browsing, PhishTank, URLhaus, AbuseIPDB, URLScan) in parallel with automatic timeouts, error isolation, and caching.
+*   **Resilient Threat Intel Orchestrator**: Queries multiple industry-standard security APIs (VirusTotal, Google Safe Browsing, URLhaus, AbuseIPDB, URLScan) in parallel with automatic timeouts, error isolation, and caching.
 *   **Headless Dynamic Analysis**: Spawns an automated Playwright Chromium instance to capture redirect chains, sniff network traffic, audit DOM inputs (for credential harvesting/OTPs), execute script telemetry, and capture screenshot evidence.
 *   **Google Gemini AI Content Audit**: Uses Google's generative AI (with primary and backup fallback model pipelines) to analyze visual, textual, and behavioral metadata, generating natural language reasoning and safety recommendations.
-*   **Dual-Layer Caching & Persistent Ledger**: Automatically caches scan results using namespaced Redis keys or a robust local in-memory clock-safe cache. Integrates serverless Google Cloud Firestore to maintain a searchable, filterable historical record of scans.
+*   **2-Tier Caching & Persistent Ledger**: Automatically caches scan results using a robust 2-Tier Caching System (In-Memory + Firestore Fallback) with dynamic expiration clocks. Integrates serverless Google Cloud Firestore to maintain a searchable, filterable historical record of scans.
 *   **Interactive Web UI Dashboard**: Renders real-time risk gauges, redirect paths, screenshots, diagnostic copy-paste prompt testers, and a slide-out Scan History drawer.
 
 ---
@@ -78,10 +78,13 @@ The system processes every URL through six progressive validation, detection, ca
 
 ```mermaid
 flowchart TD
-    A["Input URL"] --> B_Cache{"Cache Lookup<br>(Redis/Memory)"}
+    A["Input URL"] --> B_Cache{"Tier 1 Cache Lookup<br>(In-Memory)"}
     B_Cache -- HIT --> ReturnCached["Return Cached Verdict"]
     
-    B_Cache -- MISS --> P1["Phase 1: Preprocessing & DNS Validation"]
+    B_Cache -- MISS --> B_DB{"Tier 2 Cache Lookup<br>(Firestore DB)"}
+    B_DB -- "HIT & FRESH" --> Repopulate["Repopulate In-Memory Cache"] --> ReturnCached
+    
+    B_DB -- "MISS / EXPIRED" --> P1["Phase 1: Preprocessing & DNS Validation"]
     P1 --> P2["Phase 2: Static Heuristics & Lexical Analysis"]
     P2 --> P3["Phase 3: Concurrent Threat Intelligence"]
     P3 --> P4["Phase 4: Sandboxed Dynamic Browser crawling"]
@@ -89,7 +92,7 @@ flowchart TD
     
     P5 --> P6["Phase 6: Persistence & Cache Save"]
     subgraph P6_Actions[Phase 6 Operations]
-        P6 --> SaveCache["Cache Result<br>(Prefix: scan:)"]
+        P6 --> SaveCache["Cache Result<br>(In-Memory)"]
         P6 --> SaveDB["Firestore Write<br>(Background Task)"]
     end
     
@@ -106,41 +109,48 @@ sequenceDiagram
     autonumber
     actor User as Security Analyst / Web UI
     participant App as app.py (FastAPI Gateway)
-    participant Cache as Cache Layer (Redis/Memory)
+    participant Cache as Cache Layer (In-Memory)
+    participant DB as Firestore DB (Durable Cache)
     participant Pipeline as Pipeline Analyzers (Phases 1-4)
     participant Gemini as Gemini AI Service (Phase 5)
-    participant DB as Firestore DB Ledger (Phase 6)
 
     User->>App: POST /api/analyze (raw URL string)
     App->>Pipeline: Preprocess: Casing Normalization & Punycode conversion
     Pipeline-->>App: Normalized URL & Deterministic Cache Key
-    App->>Cache: GET scan:{cache_key}
+    App->>Cache: GET {cache_key}
     
-    alt Cache Hit
+    alt In-Memory Hit
         Cache-->>App: Cached FraudReport JSON Payload
         App-->>User: HTTP 200 OK (Instant Cache Render)
-    else Cache Miss
-        App->>Pipeline: 1. DNS check & MX/A record validation (Phase 1)
-        App->>Pipeline: 2. Local lexical heuristics & typosquatting check (Phase 2)
-        App->>Pipeline: 3. Concurrent Threat Intel lookup (Phase 3)
-        App->>Pipeline: 4. Sandboxed Chromium load & DOM parsing (Phase 4)
-        Pipeline-->>App: Unified AnalysisContext (screenshots, text, signals)
-        
-        App->>Gemini: 5. Gemini AI content audit (Phase 5)
-        alt Gemini Primary Model Success (gemini-2.5-flash)
-            Gemini-->>App: ContentAnalysisResult JSON
-        else Gemini Quota Limit / API Failover
-            App->>Gemini: Failover request to backup (gemini-2.5-flash-lite)
-            Gemini-->>App: ContentAnalysisResult JSON
+    else In-Memory Miss
+        App->>DB: GET report_by_cache_key
+        alt Firestore Hit & Fresh (< 30 days/24h)
+            DB-->>App: FraudReport
+            App->>Cache: SET {cache_key} (Remaining TTL)
+            App-->>User: HTTP 200 OK (Bypass Scans)
+        else Firestore Miss / Expired
+            App->>Pipeline: 1. DNS check & MX/A record validation (Phase 1)
+            App->>Pipeline: 2. Local lexical heuristics & typosquatting check (Phase 2)
+            App->>Pipeline: 3. Concurrent Threat Intel lookup (Phase 3)
+            App->>Pipeline: 4. Sandboxed Chromium load & DOM parsing (Phase 4)
+            Pipeline-->>App: Unified AnalysisContext (screenshots, text, signals)
+            
+            App->>Gemini: 5. Gemini AI content audit (Phase 5)
+            alt Gemini Primary Model Success (gemini-2.5-flash)
+                Gemini-->>App: ContentAnalysisResult JSON
+            else Gemini Quota Limit / API Failover
+                App->>Gemini: Failover request to backup (gemini-2.5-flash-lite)
+                Gemini-->>App: ContentAnalysisResult JSON
+            end
+            
+            App->>App: Compose final FraudReport Pydantic Model
+            App->>DB: Save Scan Ledger & Update Cache Key (Phase 6 Background Task)
+            App->>Cache: Save {cache_key} (Set TTL)
+            App-->>User: HTTP 200 OK (Render detailed dashboards)
         end
-        
-        App->>App: Compose final FraudReport Pydantic Model
-        App->>DB: Save Scan Ledger (Phase 6 Background Task)
-        App->>Cache: Save scan:{cache_key} (Set TTL)
-        App-->>User: HTTP 200 OK (Render detailed dashboards)
+    end
     end
 ```
-
 > [!TIP]
 > For a highly detailed architectural flowchart illustrating internal file names, class definitions, parallel execution branches, error failovers, and Firestore persistence, refer to the [DETAILED_WORKFLOW.md](DETAILED_WORKFLOW.md) guide.
 ### 📋 Technical Execution Sequence
@@ -148,7 +158,7 @@ sequenceDiagram
 | Step | System Component | Core Execution Process | Input / Output Formats | Failure Recovery / Isolation |
 | :--- | :--- | :--- | :--- | :--- |
 | **1** | **API Gateway** (`app.py`) | Receives raw request, normalizes query params, standardizes case formats, and generates the cache key. | **In**: `AnalyzeRequest` (string)<br>**Out**: Cache key string | Client-side validation returns standard HTTP 400 if syntax is malformed. |
-| **2** | **Cache Check** (`factory.py`) | Inspects local thread-safe memory storage or active Redis instance for namespaced key `scan:{key}`. | **In**: Cache key string<br>**Out**: `FraudReport` or `None` | **Fail-Open Strategy**: If Redis connection fails, prints warning and proceeds directly to query analysis pipeline. |
+| **2** | **Cache Check** (`factory.py` / `app.py`) | Inspects local thread-safe In-Memory Cache. If missed, queries Firestore cache fallback with age check (<30d for whitelist, <24h for normal). | **In**: Cache key string<br>**Out**: `FraudReport` or `None` | **Fail-Open Strategy**: If Firestore query fails, logs warning and proceeds directly to execute query analysis pipeline. |
 | **3** | **DNS Validation** (`resolver.py`) | Checks domain record resolution (A, AAAA, MX) and caches results to prevent redundant network lookups. | **In**: Hostname<br>**Out**: `ValidationResult` | If domain fails to resolve to any active IP address, the scan is terminated instantly with HTTP 400. |
 | **4** | **Static Analyzer** (`static_url_analyzer.py`) | Measures entropy, checks combosquatting lists, and executes typosquatting Levenshtein check. | **In**: `ValidationResult`<br>**Out**: `StaticRiskAnalysis` | Rules-based engine with no outbound network dependencies. Failures are isolated locally. |
 | **5** | **Threat Intel Orchestrator** (`orchestrator.py`) | Dispatches 5 concurrent thread tasks to query VirusTotal, SafeBrowsing, AbuseIPDB, URLScan, and URLhaus. | **In**: Domain & IPs<br>**Out**: `ThreatIntelligenceResult` | Individual API failures or rate limits are isolated. Confidence score dynamically scales down based on failed lookups. |
@@ -262,8 +272,15 @@ flowchart TD
 
 ---
 
-### Phase 6: Persistence & Cache Management
-*   **Dual-Layer Cache**: Searches for cache keys under a prefix namespace (`scan:{cache_key}`) with an async Redis manager or falls back to an local `InMemoryCache` using monotonic clocks to prevent clock-drift issues.
+### Phase 6: Persistence & 2-Tier Caching System
+*   **2-Tier Cache with Firestore Fallback**:
+    *   **Tier 1 (In-Memory)**: Looks up URL cache keys in a monotonic clock-safe local `InMemoryCache`.
+    *   **Tier 2 (Firestore)**: If Tier 1 misses, it queries Google Cloud Firestore for existing reports.
+    *   **Dynamic Expiration Checks**: If a Firestore record exists, its age (`scanned_at`) is evaluated in Python:
+        *   **Whitelisted Domains**: Stays fresh for **30 days** (`2,592,000` seconds).
+        *   **Normal Domains**: Stays fresh for **24 hours** (`CACHE_TTL` or 1 day).
+        *   If the record is within its freshness deadline, it is re-populated into the In-Memory cache and returned immediately—avoiding expensive external API calls and browser executions.
+        *   If expired, a fresh analysis workflow is automatically executed, overwriting the old database entry.
 *   **Firestore Database History**: Persists complete, structured `FraudReport` documents in Google Cloud Firestore as a background task.
 *   **Scan History Sidebar**: Features a sliding side drawer to fetch, search, and filter past scans locally, reloading historical records instantly.
 
@@ -286,8 +303,7 @@ flowchart LR
 
 ### Prerequisites
 *   Python 3.10+
-*   Google Cloud Firestore Database
-*   Redis server (optional, for Redis-backed caching)
+*   Google Cloud Firestore Database (or local Firebase Emulator Suite)
 
 ### 1. Clone & Setup Virtual Environment
 ```bash
@@ -320,10 +336,19 @@ GEMINI_API_KEY=your_gemini_api_key_here
 
 # Storage & Cache (Phase 6)
 FIRESTORE_PROJECT_ID=your_gcp_project_id
-FIRESTORE_DATABASE_ID=your_firestore_database_id
+FIRESTORE_DATABASE_ID=(default)                     # Use (default) for standard emulators or custom DB
 GOOGLE_APPLICATION_CREDENTIALS=D:\Study\test\Audio\ai_engineer\DP\week10\AI_agent\your-service-account-key.json
-REDIS_URL=redis://localhost:6379
-CACHE_TTL=86400
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080               # Set when running emulators locally
+CACHE_TTL=86400                                      # TTL for normal domain caches (in seconds)
+
+# Whitelist Configuration (Supports multi-line formatting & comments)
+SAFE_WHITELIST_DOMAINS="
+google.com
+gmail.com
+youtube.com
+facebook.com
+# vietname.vn
+"
 ```
 
 ---
@@ -360,9 +385,14 @@ To help test the scoring engine and pipeline robustness, the Web App features mo
 | **Scenario 6** | `*scenario6*.test` | Cache Hit simulation. | `MEDIUM` Risk, instant payload return. |
 | **Scenario 7** | `*scenario7*.test` | All threat buckets compounded. | `HIGH` Risk, maximum composite score of `80`. |
 
-To run the pipeline verification scenario unit tests:
+To run the pipeline verification scenario tests:
 ```bash
-pytest tests/run_scenarios.py
+# Windows PowerShell
+$env:PYTHONPATH="."
+venv\Scripts\python tests/run_scenarios.py
+
+# macOS/Linux Terminal
+PYTHONPATH=. venv/bin/python tests/run_scenarios.py
 ```
 
 ---

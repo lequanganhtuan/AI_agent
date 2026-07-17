@@ -248,6 +248,27 @@ class Settings(BaseSettings):
         default=None,
         alias="AGENT_API_KEY",
     )
+
+    max_concurrent_scans: int = Field(
+        default=3,
+        alias="MAX_CONCURRENT_SCANS",
+    )
+
+    backend_rate_limit_analyze_requests: int = Field(
+        default=5,
+        alias="BACKEND_RATE_LIMIT_ANALYZE_REQUESTS",
+    )
+
+    backend_rate_limit_history_requests: int = Field(
+        default=30,
+        alias="BACKEND_RATE_LIMIT_HISTORY_REQUESTS",
+    )
+
+    backend_rate_limit_window: int = Field(
+        default=60,
+        alias="BACKEND_RATE_LIMIT_WINDOW",
+    )
+
     @property
     def whitelist_domains_set(self) -> set[str]:
         import re
