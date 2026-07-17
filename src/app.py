@@ -36,6 +36,8 @@ from src.core.cache import get_cache
 from src.core.database import FirestoreRepository
 from src.core.report.builder import ReportBuilder
 from src.core.settings import settings
+from src.core.security.rate_limiter import analyze_rate_limit_dependency, history_rate_limit_dependency
+from src.core.security.provider_limiter import provider_limiter
 
 # Custom clean logging format setup for developer readability
 class CleanFormatter(logging.Formatter):
@@ -90,6 +92,9 @@ app = FastAPI(title="URL Analyzer Web Demo")
 
 cache = get_cache()
 db_repo = FirestoreRepository()
+# NOTE: The default limit of 3 concurrent scans is a placeholder value. 
+# It should be benchmarked and adjusted based on actual CPU/RAM performance of running Playwright/Puppeteer instances on production.
+scan_semaphore = asyncio.Semaphore(settings.max_concurrent_scans)
 
 async def persist_report_data(report):
     try:
@@ -159,9 +164,14 @@ async def read_details(response: Response):
     return "<h1>Details template not found!</h1>"
 
 @app.post("/api/analyze")
-async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks, _api_key: str = Depends(verify_api_key)):
+async def analyze_url(
+    req: AnalyzeRequest,
+    background_tasks: BackgroundTasks,
+    _api_key: str = Depends(verify_api_key),
+    _rate_limit: None = Depends(analyze_rate_limit_dependency)
+):
     try:
-        url_lower = req.url.lower().strip()
+        # url_lower = req.url.lower().strip()
           # Mock scenario interception for Web UI demonstration
         """
         if "scenario" in url_lower and ".test" in url_lower:
@@ -480,20 +490,40 @@ async def analyze_url(req: AnalyzeRequest, background_tasks: BackgroundTasks, _a
             except Exception as db_cache_err:
                 logger.error(f"Failed checking Firestore cache: {str(db_cache_err)}")
 
+        # Check if critical AI service (Gemini) circuit is open (degraded)
+        if await provider_limiter.is_circuit_open("Gemini"):
+            logger.warning("[CircuitBreaker] Gemini circuit is OPEN. Failing fast to protect resource load.")
+            raise HTTPException(
+                status_code=503,
+                detail="Hệ thống phân tích tạm thời quá tải. Vui lòng thử lại sau."
+            )
+
         # 2. Run the agent workflow
         from src.agents.runner import AgentRunner
         from src.agents.state import ExecutionStatus
 
-        runner = AgentRunner()
-        state = await runner.run_async(req.url)
-        
-        if state.workflow.status == ExecutionStatus.FAILED:
-            error_msg = state.telemetry.errors[-1].message if state.telemetry.errors else "Unknown agent execution error"
-            raise HTTPException(status_code=500, detail=f"Agent workflow failed: {error_msg}")
+        logger.info(f"[Concurrency] Acquiring scan semaphore. Available slots: {scan_semaphore._value}")
+        async with scan_semaphore:
+            logger.info(f"[Concurrency] Semaphore acquired. Executing AgentRunner for: {req.url}")
+            runner = AgentRunner()
+            state = await runner.run_async(req.url, validation_result=validation_result)
             
-        report = state.report
-        if not report:
-            raise HTTPException(status_code=500, detail="Agent workflow finished without generating a report.")
+            if state.workflow.status == ExecutionStatus.FAILED:
+                from src.agents.state.enums import NodeName
+                ai_error = next((err for err in state.telemetry.errors if err.node == str(NodeName.AI) or err.node == "NodeName.AI"), None)
+                if ai_error:
+                    err_msg_lower = ai_error.message.lower()
+                    if "rate limit" in err_msg_lower or "blocked" in err_msg_lower or "quota" in err_msg_lower or "circuit" in err_msg_lower:
+                        raise HTTPException(
+                            status_code=503,
+                            detail="Hệ thống phân tích tạm thời quá tải. Vui lòng thử lại sau."
+                        )
+                error_msg = state.telemetry.errors[-1].message if state.telemetry.errors else "Unknown agent execution error"
+                raise HTTPException(status_code=500, detail=f"Agent workflow failed: {error_msg}")
+                
+            report = state.report
+            if not report:
+                raise HTTPException(status_code=500, detail="Agent workflow finished without generating a report.")
 
         # Delegate caching and database persistence to FastAPI BackgroundTasks to optimize response latency
         background_tasks.add_task(
@@ -517,7 +547,8 @@ async def get_scan_history(
     search: str | None = None,
     verdict: str | None = None,
     risk: str | None = None,
-    _api_key: str = Depends(verify_api_key)
+    _api_key: str = Depends(verify_api_key),
+    _rate_limit: None = Depends(history_rate_limit_dependency)
 ):
     try:
         # Check DB first
@@ -566,7 +597,11 @@ async def get_scan_history(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/history/{scan_id}")
-async def get_historical_scan(scan_id: str, _api_key: str = Depends(verify_api_key)):
+async def get_historical_scan(
+    scan_id: str,
+    _api_key: str = Depends(verify_api_key),
+    _rate_limit: None = Depends(history_rate_limit_dependency)
+):
     try:
         # Check cache first
         cached_report = await cache.get(scan_id)

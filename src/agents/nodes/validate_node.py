@@ -11,6 +11,15 @@ def validate_node(state: URLAnalysisState) -> URLAnalysisState:
     state.workflow.current_node = NodeName.VALIDATE
     state.workflow.visited_nodes.append(NodeName.VALIDATE)
     
+    # Check if URL was already validated and is valid
+    if state.analysis.validation and state.analysis.validation.valid:
+        logger.info("[validate_node] Reusing pre-existing validation result. Skipping re-analysis.")
+        state.analysis.normalized_url = state.analysis.validation.normalized_url
+        state.workflow.completed_nodes.append(NodeName.VALIDATE)
+        from src.agents.checkpoint import checkpoint_manager
+        checkpoint_manager.save(state)
+        return state
+
     tool = tool_registry.get(NodeName.VALIDATE)
     result = tool.run(state)
     

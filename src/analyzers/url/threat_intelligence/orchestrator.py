@@ -14,7 +14,9 @@ from src.analyzers.url.threat_intelligence.provider import (
     URLHausProvider,
     URLScanProvider,
     VirusTotalProvider,
+    ProviderError,
 )
+from src.core.security.provider_limiter import provider_limiter
 from src.core.models import (
     GoogleSafeBrowsingAnalysis,
     AbuseIPDBAnalysis,
@@ -159,14 +161,29 @@ class ThreatIntelOrchestrator:
         start_time = loop.time()
         
         try:
+            # Check Token Bucket / Circuit Breaker first
+            if not await provider_limiter.before_execute(provider_name):
+                raise ProviderError(
+                    provider=provider_name,
+                    message="Blocked by provider rate limiter or circuit breaker.",
+                    status_code=429,
+                    raw_error_type="RateLimitOrCircuitBreaker"
+                )
+
             timeout = getattr(provider, "_timeout", 5.0) + 1.0
             result = await asyncio.wait_for(provider.lookup(threat_input), timeout=timeout)
+            
+            # Record success in Circuit Breaker
+            await provider_limiter.after_execute(provider_name, success=True)
             
             duration = loop.time() - start_time
             logger.info("[Orchestrator][%s] Provider %s fetched successfully in %.3fs.", correlation_id, provider_name, duration)
             return result, True
             
         except Exception as exc:
+            # Record failure in Circuit Breaker
+            await provider_limiter.after_execute(provider_name, success=False)
+            
             duration = loop.time() - start_time
             logger.warning(
                 "[Orchestrator][%s] Observability Alert: Provider %s failed/timed out after %.3fs. Falling back to empty semantic state. Error: %s",

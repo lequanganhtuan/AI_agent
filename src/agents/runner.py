@@ -29,7 +29,7 @@ class AgentRunner:
     def __init__(self):
         pass
 
-    def run(self, url: str, cache_hit: bool = False) -> URLAnalysisState:
+    def run(self, url: str, cache_hit: bool = False, validation_result = None) -> URLAnalysisState:
         """Synchronous wrapper for run_async supporting active loops."""
         try:
             loop = asyncio.get_running_loop()
@@ -38,18 +38,21 @@ class AgentRunner:
             
         if loop and loop.is_running():
             from src.agents.tools.base import global_executor
-            future = global_executor.submit(lambda: asyncio.run(self.run_async(url, cache_hit)))
+            future = global_executor.submit(lambda: asyncio.run(self.run_async(url, cache_hit, validation_result)))
             return future.result()
         else:
-            return asyncio.run(self.run_async(url, cache_hit))
+            return asyncio.run(self.run_async(url, cache_hit, validation_result))
 
-    async def run_async(self, url: str, cache_hit: bool = False) -> URLAnalysisState:
+    async def run_async(self, url: str, cache_hit: bool = False, validation_result = None) -> URLAnalysisState:
         """Executes the analysis workflow end-to-end for a URL using a native async cascade pipeline."""
         start_time = datetime.utcnow()
         state = create_initial_state(url)
         state.execution.started_at = start_time
         if cache_hit:
             state.control.cache_hit = True
+        if validation_result:
+            state.analysis.validation = validation_result
+            state.analysis.normalized_url = validation_result.normalized_url
             
         logger.info(f"=== Starting Agent Execution Workflow (Vanilla Async) ===")
         logger.info(f"Request ID:  {state.execution.request_id}")

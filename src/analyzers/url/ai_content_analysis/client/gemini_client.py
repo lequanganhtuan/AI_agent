@@ -19,6 +19,7 @@ from src.analyzers.url.ai_content_analysis.exceptions import (
     LLMRateLimitError,
     LLMQuotaExhaustedError,
 )
+from src.core.security.provider_limiter import provider_limiter
 
 
 logger = logging.getLogger(__name__)
@@ -35,9 +36,15 @@ class GeminiClient(BaseLLMClient):
 
     async def generate(self, request: PromptRequest) -> str:
         """Asynchronously triggers the LLM generation flow on the Gemini client wrapped with a retry policy."""
+        # 1. Check Token Bucket & Circuit Breaker for Gemini
+        if not await provider_limiter.before_execute("Gemini"):
+            raise LLMRateLimitError("Gemini client blocked by rate limiter or circuit breaker.")
+
         try:
             logger.info(f"Attempting content generation with primary model: {config.model_name}")
-            return await execute_with_retry(self._generate_once, request, model_name=config.model_name)
+            res = await execute_with_retry(self._generate_once, request, model_name=config.model_name)
+            await provider_limiter.after_execute("Gemini", success=True)
+            return res
         except (LLMQuotaExhaustedError, LLMRateLimitError, LLMConnectionError) as e:
             if config.backup_model_name and config.backup_model_name != config.model_name:
                 logger.warning(
@@ -45,10 +52,18 @@ class GeminiClient(BaseLLMClient):
                     f"Initiating fallback to backup model: {config.backup_model_name}"
                 )
                 try:
-                    return await execute_with_retry(self._generate_once, request, model_name=config.backup_model_name)
+                    res_backup = await execute_with_retry(self._generate_once, request, model_name=config.backup_model_name)
+                    await provider_limiter.after_execute("Gemini", success=True)
+                    return res_backup
                 except Exception as backup_err:
+                    await provider_limiter.after_execute("Gemini", success=False)
                     logger.error(f"Backup model {config.backup_model_name} also failed: {str(backup_err)}")
                     raise backup_err
+            
+            await provider_limiter.after_execute("Gemini", success=False)
+            raise e
+        except Exception as e:
+            await provider_limiter.after_execute("Gemini", success=False)
             raise e
 
     async def _generate_once(self, request: PromptRequest, model_name: Optional[str] = None) -> str:

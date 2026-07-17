@@ -28,7 +28,6 @@ def encode_screenshot(screenshot_path: Optional[str]) -> Optional[str]:
                 new_height = int(max_width * aspect_ratio)
                 img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
             
-            # Save compressed JPEG into BytesIO buffer
             # Convert to RGB if the image is in RGBA mode
             if img.mode in ("RGBA", "P"):
                 img = img.convert("RGB")
