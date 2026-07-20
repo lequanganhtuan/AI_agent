@@ -163,6 +163,10 @@ async def read_details(response: Response):
             return f.read()
     return "<h1>Details template not found!</h1>"
 
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
 @app.post("/api/analyze")
 async def analyze_url(
     req: AnalyzeRequest,

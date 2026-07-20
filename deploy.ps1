@@ -3,6 +3,14 @@
 
 $ErrorActionPreference = "Stop"
 
+# Tự động thêm đường dẫn Google Cloud SDK vào PATH nếu chưa có
+$GCLOUD_PATH = "$env:LocalAppData\Google\Cloud SDK\google-cloud-sdk\bin"
+if (Test-Path $GCLOUD_PATH) {
+    if ($env:PATH -notlike "*$GCLOUD_PATH*") {
+        $env:PATH = "$GCLOUD_PATH;$env:PATH"
+    }
+}
+
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host "  HỆ THỐNG TRIỂN KHAI TỰ ĐỘNG VTRUST AI AGENT (FASTAPI)  " -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
