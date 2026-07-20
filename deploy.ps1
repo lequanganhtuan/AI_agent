@@ -1,5 +1,7 @@
-# Script Triển khai Tự động VTrust AI Agent Backend lên Google Cloud Run
-# Yêu cầu: Đã cài đặt Google Cloud SDK (gcloud CLI) trên máy và đã đăng nhập bằng tài khoản GCP.
+param(
+    [string]$ProjectId = "second-core-501608-a5",
+    [string]$Region = "asia-southeast1"
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -16,11 +18,8 @@ Write-Host "  HỆ THỐNG TRIỂN KHAI TỰ ĐỘNG VTRUST AI AGENT (FASTAPI)  
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 # 1. Thu thập thông tin dự án GCP
-$PROJECT_ID = Read-Host "Nhập GCP Project ID của bạn (Mặc định: vtrust-vn)"
-if (-not $PROJECT_ID) { $PROJECT_ID = "vtrust-vn" }
-
-$REGION = Read-Host "Nhập GCP Region (Mặc định: asia-southeast1)"
-if (-not $REGION) { $REGION = "asia-southeast1" }
+$PROJECT_ID = $ProjectId
+$REGION = $Region
 
 $SERVICE_NAME = "vtrust-ai-agent"
 $REPO_NAME = "vtrust-repo"
