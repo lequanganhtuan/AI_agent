@@ -49,11 +49,7 @@ Write-Host "`n[Bước 1/4] Kiểm tra kho lưu trữ Artifact Registry..." -For
 $repoExists = gcloud artifacts repositories list --location=$REGION --filter="name:projects/$PROJECT_ID/locations/$REGION/repositories/$REPO_NAME" --format="value(name)"
 if (-not $repoExists) {
     Write-Host "Đang tạo kho lưu trữ Docker '$REPO_NAME' tại $REGION..." -ForegroundColor Green
-    gcloud artifacts repositories create $REPO_NAME `
-        --repository-format=docker `
-        --location=$REGION `
-        --description="VTrust Docker images repository" `
-        --project=$PROJECT_ID
+    gcloud artifacts repositories create $REPO_NAME --repository-format=docker --location=$REGION --description="VTrust Docker images repository" --project=$PROJECT_ID
 } else {
     Write-Host "Kho lưu trữ '$REPO_NAME' đã tồn tại." -ForegroundColor Green
 }
@@ -65,19 +61,7 @@ gcloud builds submit --tag $IMAGE_TAG --project=$PROJECT_ID
 
 # 5. Deploy lên Google Cloud Run
 Write-Host "`n[Bước 3/4] Triển khai Container lên Google Cloud Run..." -ForegroundColor Yellow
-gcloud run deploy $SERVICE_NAME `
-    --image $IMAGE_TAG `
-    --platform managed `
-    --region $REGION `
-    --memory 2Gi `
-    --cpu 2 `
-    --concurrency 10 `
-    --timeout 600 `
-    --min-instances 1 `
-    --max-instances 10 `
-    --allow-unauthenticated `
-    --set-env-vars="FIRESTORE_PROJECT_ID=$PROJECT_ID" `
-    --project=$PROJECT_ID
+gcloud run deploy $SERVICE_NAME --image $IMAGE_TAG --platform managed --region $REGION --memory 2Gi --cpu 2 --concurrency 10 --timeout 600 --min-instances 1 --max-instances 10 --allow-unauthenticated --set-env-vars="FIRESTORE_PROJECT_ID=$PROJECT_ID" --project=$PROJECT_ID
 
 # Lấy URL của Cloud Run
 $RUN_URL = gcloud run services describe $SERVICE_NAME --platform=managed --region=$REGION --format="value(status.url)"
@@ -92,10 +76,7 @@ try {
     Write-Host "Tài khoản Service Account của Cloud Run: $SA_EMAIL" -ForegroundColor DarkGray
     
     Write-Host "Đang gán vai trò Cloud Datastore User (đọc/ghi Firestore)..." -ForegroundColor Green
-    gcloud projects add-iam-policy-binding $PROJECT_ID `
-        --member="serviceAccount:$SA_EMAIL" `
-        --role="roles/datastore.user" `
-        --no-user-output-enabled
+    gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$SA_EMAIL" --role="roles/datastore.user" --no-user-output-enabled
         
     Write-Host "Gán quyền Firestore IAM thành công!" -ForegroundColor Green
 } catch {
