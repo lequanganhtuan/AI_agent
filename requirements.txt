@@ -12,6 +12,4 @@ google-cloud-storage
 firebase-functions
 google-genai
 Pillow
-langgraph
-langgraph-sdk
 firebase-admin
