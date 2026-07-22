@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analysis Details - Enterprise URL Safety Analyzer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+    <div class="background-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <div class="container">
+        <header class="header">
+            <div class="header-main" style="display: flex; flex-direction: column; align-items: center; gap: 15px;">
+                <a href="/" class="back-link" style="text-decoration: none; color: #60a5fa; font-weight: 500; display: flex; align-items: center; gap: 8px; font-size: 1.1rem; align-self: flex-start; margin-bottom: 10px; transition: all 0.2s;">
+                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="19" y1="12" x2="5" y2="12"></line>
+                        <polyline points="12 19 5 12 12 5"></polyline>
+                    </svg>
+                    <span>Back to Home</span>
+                </a>
+                <h1>Analysis Details</h1>
+                <p id="details-subtitle" style="font-size: 1.2rem; color: #a78bfa; word-break: break-all; max-width: 900px;">Loading reports telemetry...</p>
+            </div>
+        </header>
+
+        <main>
+            <div id="details-loading" class="details-loading" style="text-align: center; padding: 4rem 2rem;">
+                <div class="spinner" style="margin: 0 auto 20px auto; width: 40px; height: 40px; border-width: 4px;"></div>
+                <p style="color: var(--text-muted); font-size: 1.15rem;">Fetching multi-phase audit record...</p>
+            </div>
+
+            <div id="details-error" class="error-message hidden" style="margin-bottom: 3rem; text-align: center; padding: 2rem;"></div>
+
+            <section id="results-section" class="results-section hidden">
+                <div class="details-layout" style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 30px; margin-top: 20px;">
+                    
+                    <!-- Left Column: Score, AI Explanation and Reasoning -->
+                    <div class="details-left-col" style="display: flex; flex-direction: column; gap: 24px;">
+                        
+                        <!-- Score and Verdict card -->
+                        <div class="score-card" id="main-score-card" style="display: flex; align-items: center; gap: 30px; padding: 30px;">
+                            <div class="score-circle">
+                                <svg viewBox="0 0 36 36" class="circular-chart">
+                                    <path class="circle-bg"
+                                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                    <path class="circle" id="score-path" stroke-dasharray="0, 100"
+                                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                    <text x="18" y="20.35" class="percentage" id="score-value">0</text>
+                                </svg>
+                            </div>
+                            <div class="risk-info">
+                                <h2 style="font-size: 1.6rem; margin-bottom: 5px;">Compounded Threat Risk</h2>
+                                <h3 id="risk-level-text" class="risk-level" style="font-size: 1.8rem; font-weight: 800; text-transform: uppercase; margin-bottom: 12px;">Unknown</h3>
+                                <div class="meta-row" style="display: flex; gap: 10px; align-items: center; margin-top: 6px;">
+                                    <span class="meta-label" style="color: var(--text-muted); font-size: 0.95rem;">Verdict:</span>
+                                    <span id="verdict-badge" class="status-pill status-clean" style="font-weight: 600;">ALLOW</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- AI Summary & Insights -->
+                        <div class="detail-card">
+                            <h4 style="font-size: 1.3rem; color: #a78bfa; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 8px;">Gemini AI Analysis & Explanation</h4>
+                            <div class="metrics-list" style="margin-bottom: 20px;">
+                                <div class="metric-row">
+                                    <span class="metric-label">Website Purpose:</span>
+                                    <span id="ai-website-purpose" class="metric-value" style="font-weight: 500;">-</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-label">Detected Target Brand:</span>
+                                    <span id="ai-detected-brand" class="metric-value" style="font-weight: 500;">-</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-label">Fraud Category:</span>
+                                    <span id="ai-fraud-category" class="metric-value" style="font-weight: 500;">-</span>
+                                </div>
+                            </div>
+                            <div class="summary-card" style="background: rgba(15, 23, 42, 0.3); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 20px;">
+                                <h5 style="margin-bottom: 8px; font-size: 1.05rem; color: #f472b6;">AI Explanation Summary</h5>
+                                <p id="ai-summary-text" style="line-height: 1.6; color: #cbd5e1; font-size: 1rem;">Analyzing details...</p>
+                            </div>
+                        </div>
+
+                        <!-- AI Reasoning Steps -->
+                        <div class="detail-card">
+                            <h4 style="font-size: 1.2rem; color: #60a5fa; margin-bottom: 12px;">AI Analytical Findings & Reasoning</h4>
+                            <div class="summary-bullets" id="ai-findings-details">
+                                <div class="bullet-item">No findings loaded.</div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Right Column: Screenshot, Evidence & DB Provider Hits -->
+                    <div class="details-right-col" style="display: flex; flex-direction: column; gap: 24px;">
+                        
+                        <!-- Visual Evidence (Screenshot) -->
+                        <div class="detail-card" style="display: flex; flex-direction: column;">
+                            <h4 style="font-size: 1.2rem; color: #fb7185; margin-bottom: 12px;">Visual Screenshot Evidence</h4>
+                            <div class="screenshot-container" style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; min-height: 200px; position: relative;">
+                                <img id="dynamic-screenshot-img" src="" alt="Page screenshot"
+                                    class="screenshot-preview hidden" style="width: 100%; height: auto; max-height: 350px; object-fit: contain; cursor: pointer;">
+                                <div id="dynamic-screenshot-placeholder" class="screenshot-placeholder" style="padding: 30px; text-align: center; color: var(--text-muted); font-size: 0.95rem;">
+                                    <svg viewBox="0 0 24 24" width="36" height="36" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="margin: 0 auto 10px auto; opacity: 0.6;">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                        <polyline points="21 15 16 10 5 21"></polyline>
+                                    </svg>
+                                    <span id="screenshot-status-text">No Screenshot Captured</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Suspicious Indicators / Evidence -->
+                        <div class="detail-card">
+                            <h4 style="font-size: 1.2rem; color: #fbbf24; margin-bottom: 12px;">Evidence & Triggered Indicators</h4>
+                            <div class="badge-container" id="triggered-signals-container" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;">
+                                <span class="no-signals" style="color: var(--text-muted); font-size: 0.95rem;">No security indicators triggered.</span>
+                            </div>
+                        </div>
+
+                        <!-- Database Provider Verdicts -->
+                        <div class="detail-card">
+                            <h4 style="font-size: 1.2rem; color: #34d399; margin-bottom: 15px;">Threat Database Verification Results</h4>
+                            <div style="overflow-x: auto; background: rgba(15, 23, 42, 0.2); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px;">
+                                <table class="threat-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+                                    <thead>
+                                        <tr style="border-bottom: 1.5px solid rgba(255,255,255,0.08); background: rgba(255, 255, 255, 0.02);">
+                                            <th style="padding: 12px 16px; font-weight: 600; color: #94a3b8;">Source</th>
+                                            <th style="padding: 12px 16px; font-weight: 600; color: #94a3b8;">Key Metric / Status</th>
+                                            <th style="padding: 12px 16px; font-weight: 600; color: #94a3b8;">Quick Verdict</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- VirusTotal Row -->
+                                        <tr id="row-vt" style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                            <td style="padding: 14px 16px; font-weight: 500; color: #cbd5e1;">VirusTotal</td>
+                                            <td id="threat-vt-metric" style="padding: 14px 16px; color: #94a3b8;">0 flagged engines</td>
+                                            <td style="padding: 14px 16px;"><span id="threat-vt-verdict" style="font-weight: 600; color: #10b981;">● Clean</span></td>
+                                        </tr>
+                                        <!-- Google Safe Browsing Row -->
+                                        <tr id="row-gsb" style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                            <td style="padding: 14px 16px; font-weight: 500; color: #cbd5e1;">Google Safe Browsing</td>
+                                            <td id="threat-gsb-metric" style="padding: 14px 16px; color: #94a3b8;">No threats found</td>
+                                            <td style="padding: 14px 16px;"><span id="threat-gsb-verdict" style="font-weight: 600; color: #10b981;">● Safe</span></td>
+                                        </tr>
+                                        <!-- URLHaus Row -->
+                                        <tr id="row-urlhaus" style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                            <td style="padding: 14px 16px; font-weight: 500; color: #cbd5e1;">URLHaus</td>
+                                            <td id="threat-urlhaus-metric" style="padding: 14px 16px; color: #94a3b8;">Not blacklisted</td>
+                                            <td style="padding: 14px 16px;"><span id="threat-urlhaus-verdict" style="font-weight: 600; color: #10b981;">● Clean</span></td>
+                                        </tr>
+                                        <!-- AbuseIPDB Row -->
+                                        <tr id="row-abuseipdb" style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                            <td style="padding: 14px 16px; font-weight: 500; color: #cbd5e1;">AbuseIPDB</td>
+                                            <td id="threat-abuseipdb-metric" style="padding: 14px 16px; color: #94a3b8;">-</td>
+                                            <td style="padding: 14px 16px;"><span id="threat-abuseipdb-verdict" style="font-weight: 600; color: #10b981;">● Trustworthy (0% abuse)</span></td>
+                                        </tr>
+                                        <!-- URLScan Row -->
+                                        <tr id="row-urlscan" style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+                                            <td style="padding: 14px 16px; font-weight: 500; color: #cbd5e1;">URLScan</td>
+                                            <td id="threat-urlscan-metric" style="padding: 14px 16px; color: #94a3b8;">0 malicious verdicts</td>
+                                            <td style="padding: 14px 16px;"><span id="threat-urlscan-verdict" style="font-weight: 600; color: #10b981;">● Safe (Cached Scan)</span></td>
+                                        </tr>
+                                        <!-- PhishTank Row -->
+                                        <tr id="row-phishtank">
+                                            <td style="padding: 14px 16px; font-weight: 500; color: #cbd5e1;">PhishTank</td>
+                                            <td id="threat-phishtank-metric" style="padding: 14px 16px; color: #94a3b8;">No match found</td>
+                                            <td style="padding: 14px 16px;"><span id="threat-phishtank-verdict" style="font-weight: 600; color: #10b981;">● Clean</span></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Screenshot Zoom Modal -->
+    <div id="screenshot-modal" class="screenshot-modal hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95); z-index: 1000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(8px); transition: all 0.3s ease;">
+        <span id="close-modal" style="position: absolute; top: 20px; right: 30px; font-size: 3rem; color: #cbd5e1; cursor: pointer; font-family: sans-serif; transition: color 0.2s;">&times;</span>
+        <img id="modal-img" src="" alt="Screenshot Zoomed" style="max-width: 90%; max-height: 90%; border-radius: 8px; border: 2px solid rgba(255, 255, 255, 0.1); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); cursor: zoom-out;">
+    </div>
+
+    <!-- Details script -->
+    <script src="/static/details.js"></script>
+</body>
+
+</html>

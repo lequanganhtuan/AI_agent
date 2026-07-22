@@ -1,0 +1,17 @@
+tldextract
+fastapi
+uvicorn
+pydantic
+httpx
+pydantic-settings
+python-dotenv
+dnspython
+beautifulsoup4
+google-cloud-firestore
+google-cloud-storage
+firebase-functions
+google-genai
+Pillow
+langgraph
+langgraph-sdk
+firebase-admin
