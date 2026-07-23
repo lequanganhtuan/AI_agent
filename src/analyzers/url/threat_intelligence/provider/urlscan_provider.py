@@ -81,18 +81,13 @@ class URLScanProvider(BaseThreatProvider[URLScanAnalysis]):
             raise ValueError("Target input normalized_url cannot be null or empty")
 
         # Whitelist bypass for popular clean domains to avoid URLScan blocks/restrictions
+        from src.core.settings import settings
         domain_lower = threat_input.domain.lower().strip()
         parts = domain_lower.split(".")
         root_domain = ".".join(parts[-2:]) if len(parts) >= 2 else domain_lower
         
-        legitimate_domains = {
-            "google.com", "gmail.com", "youtube.com", "facebook.com", "apple.com",
-            "microsoft.com", "live.com", "outlook.com", "twitter.com", "x.com",
-            "linkedin.com", "netflix.com", "wikipedia.org", "amazon.com",
-            "github.com", "cloudflare.com", "abuse.ch", "virustotal.com"
-        }
-        if root_domain in legitimate_domains:
-            logger.info("[%s] Domain %s is in the legitimate whitelist. Returning default clean analysis.", self.PROVIDER_NAME, domain_lower)
+        if settings.is_whitelisted(url) or root_domain in settings.whitelist_domains_set or domain_lower in settings.whitelist_domains_set:
+            logger.info("[%s] Domain %s is in the settings whitelist. Returning default clean analysis.", self.PROVIDER_NAME, domain_lower)
             return URLScanAnalysis()
 
         logger.info(ThreatIntelConfig.LOG_REQUEST_START, self.PROVIDER_NAME, url)
@@ -195,9 +190,7 @@ class URLScanProvider(BaseThreatProvider[URLScanAnalysis]):
             )
         return str(uuid_val)
 
-    # ------------------------------------------------------------------ #
     # 4. _poll_result() - Hard Boundary Safe Polling Implementation
-    # ------------------------------------------------------------------ #
     async def _poll_result(self, scan_uuid: str) -> httpx.Response:
         """Poll the result endpoint with progressive backoff and strict wall-clock limits."""
         consecutive_404_count = 0
@@ -286,7 +279,7 @@ class URLScanProvider(BaseThreatProvider[URLScanAnalysis]):
         return await self._safe_request(
             method="GET",
             url=endpoint,
-            intercept_429=False,  # Nhả cờ để tầng poll tự bắt mã 429 adaptive
+            intercept_429=False, 
             headers=self._get_minimal_auth_headers(),
         )
 
