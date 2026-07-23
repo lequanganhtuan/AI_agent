@@ -1,5 +1,6 @@
 import time
 import logging
+import asyncio
 import concurrent.futures
 from typing import Any
 from pydantic import BaseModel
@@ -17,11 +18,14 @@ class ToolResult(BaseModel):
     duration: float = 0.0
 
 class BaseTool:
-    def run(self, state: URLAnalysisState) -> ToolResult:
+    async def run(self, state: URLAnalysisState) -> ToolResult:
         start_time = time.perf_counter()
         try:
             logger.info(f"Executing tool: {self.__class__.__name__}")
-            result_data = self._execute(state)
+            if asyncio.iscoroutinefunction(self._execute):
+                result_data = await self._execute(state)
+            else:
+                result_data = self._execute(state)
             duration = time.perf_counter() - start_time
             
             if isinstance(result_data, ToolResult):
@@ -41,7 +45,7 @@ class BaseTool:
                 duration=duration
             )
 
-    def _execute(self, state: URLAnalysisState) -> Any:
+    async def _execute(self, state: URLAnalysisState) -> Any:
         raise NotImplementedError("Subclasses must implement _execute")
 
     def _is_retryable(self, exc: Exception) -> bool:

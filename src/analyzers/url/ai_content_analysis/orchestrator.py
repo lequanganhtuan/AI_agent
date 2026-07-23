@@ -22,6 +22,10 @@ class AIContentAnalysisOrchestrator:
 
     async def analyze(self, context: AnalysisContext, html: Optional[str] = None) -> AnalysisContext:
         """Orchestrates the context analysis execution flow and stores results on context.ai."""
+        if html:
+            from src.analyzers.url.ai_content_analysis.utils.html_cleaner import clean_html_for_llm
+            html = clean_html_for_llm(html)
+
         try:
             result = await self.service.analyze(context, html)
             context.ai = result

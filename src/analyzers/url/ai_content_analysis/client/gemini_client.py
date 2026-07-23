@@ -118,15 +118,26 @@ class GeminiClient(BaseLLMClient):
 
             # 4. Safe telemetry log mapping (No prompts, keys, or screenshots)
             usage = getattr(response, "usage_metadata", None)
-            usage_info = {
-                "prompt_tokens": getattr(usage, "prompt_token_count", 0),
-                "completion_tokens": getattr(usage, "candidates_token_count", getattr(usage, "response_token_count", 0)),
-                "total_tokens": getattr(usage, "total_token_count", 0)
-            } if usage else None
+            sys_prompt_text = request.system_prompt or ""
+            usr_prompt_text = request.user_prompt or ""
+            
+            system_tokens = max(1, len(sys_prompt_text) // 4) if sys_prompt_text else 0
+            prompt_tokens = getattr(usage, "prompt_token_count", 0) if usage else ((len(sys_prompt_text) + len(usr_prompt_text)) // 4)
+            user_tokens = max(0, prompt_tokens - system_tokens)
+            completion_tokens = getattr(usage, "candidates_token_count", getattr(usage, "response_token_count", 0)) if usage else 0
+            total_tokens = getattr(usage, "total_token_count", 0) if usage else (prompt_tokens + completion_tokens)
+
+            request.token_usage = {
+                "system_prompt_tokens": system_tokens,
+                "user_prompt_tokens": user_tokens,
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": total_tokens
+            }
 
             logger.info(
                 f"LLM request completed. model_name={selected_model} "
-                f"request_duration={duration:.4f}s token_usage={usage_info}"
+                f"request_duration={duration:.4f}s token_usage={request.token_usage}"
             )
 
             # Return raw response content directly without validation or json transformation

@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any
 from .base import BaseCheckpointSaver
 from src.agents.state import URLAnalysisState
@@ -19,7 +19,7 @@ class InMemoryCheckpointSaver(BaseCheckpointSaver):
         # Update persistence telemetry metadata inside the state
         state.telemetry.checkpoint_saved = True
         state.telemetry.checkpoint_id = request_id
-        state.telemetry.checkpoint_time = datetime.utcnow()
+        state.telemetry.checkpoint_time = datetime.now(timezone.utc)
         
         # Deep clone/serialize to avoid mutations affecting stored checkpoints
         from src.agents.state.state import clone_state

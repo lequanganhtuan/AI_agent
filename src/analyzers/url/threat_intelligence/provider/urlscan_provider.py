@@ -485,10 +485,14 @@ class URLScanProvider(BaseThreatProvider[URLScanAnalysis]):
         }
 
     def _extract_dom_metrics(self, data: dict[str, Any]) -> dict[str, Any]:
+        page = data.get("page", {})
         task = data.get("task", {})
-        if isinstance(task, dict):
-            return {"dom_size": task.get("domSizeBytes") or 0}
-        return {"dom_size": 0}
+        dom_size = 0
+        if isinstance(page, dict) and page.get("domSizeBytes"):
+            dom_size = int(page.get("domSizeBytes") or 0)
+        elif isinstance(task, dict) and task.get("domSizeBytes"):
+            dom_size = int(task.get("domSizeBytes") or 0)
+        return {"dom_size": dom_size}
 
     # 9. Advanced Fraud-Signal Extractors (bổ sung từ bản cải tiến)
     def _extract_network_graph(self, data: dict[str, Any]) -> list[dict[str, Any]]:

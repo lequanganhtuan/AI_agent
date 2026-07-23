@@ -1,12 +1,12 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from src.agents.state import URLAnalysisState, NodeName, ExecutionStatus, AgentError
 from src.agents.tools import tool_registry
 from src.agents.error import error_policy, ErrorAction
 
 logger = logging.getLogger(__name__)
 
-def static_node(state: URLAnalysisState) -> URLAnalysisState:
+async def static_node(state: URLAnalysisState) -> URLAnalysisState:
     if state.control.should_stop:
         return state
 
@@ -15,13 +15,14 @@ def static_node(state: URLAnalysisState) -> URLAnalysisState:
     state.workflow.visited_nodes.append(NodeName.STATIC)
     
     tool = tool_registry.get(NodeName.STATIC)
-    result = tool.run(state)
+    result = await tool.run(state)
     
     state.telemetry.node_timings[str(NodeName.STATIC)] = result.duration
     
     if result.success:
-        state.analysis.static = result.data
         state.workflow.completed_nodes.append(NodeName.STATIC)
+        if result.data:
+            state.analysis.static = result.data
     else:
         err_msg = result.error or "Unknown StaticTool failure"
         decision = error_policy.handle(err_msg, NodeName.STATIC, 0, result.retryable)
@@ -35,7 +36,7 @@ def static_node(state: URLAnalysisState) -> URLAnalysisState:
             tool="StaticTool",
             message=err_msg,
             exception_type="ToolExecutionError",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             retryable=result.retryable,
             error_type=decision.error_type,
             action_taken=str(decision.action)

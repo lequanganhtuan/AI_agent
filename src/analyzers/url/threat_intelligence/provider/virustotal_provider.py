@@ -256,7 +256,7 @@ class VirusTotalProvider(BaseThreatProvider[VirusTotalAnalysis]):
 
             attributes = self._extract_attributes(payload)
             stats, results = self._extract_statistics(attributes)
-            categories = self._extract_categories(results)
+            categories = self._extract_categories(attributes, results)
             scan_date = self._extract_scan_date(attributes)
 
             # Compute total engines as the sum of all status values
@@ -272,7 +272,7 @@ class VirusTotalProvider(BaseThreatProvider[VirusTotalAnalysis]):
                 undetected=int(stats.get("undetected", 0)),
                 categories=categories,
                 scan_date=scan_date,
-                found=bool(malicious_count > 0 or suspicious_count > 0)
+                found=True
             )
 
         except ProviderError:
@@ -302,20 +302,26 @@ class VirusTotalProvider(BaseThreatProvider[VirusTotalAnalysis]):
 
         raise KeyError("Polymorphic parser failed: Neither 'last_analysis_stats' nor 'stats' found.")
 
-    def _extract_categories(self, results: dict[str, Any]) -> list[str]:
-        """Extract unique malware signatures (verdicts) from AV engines."""
+    def _extract_categories(self, attributes: dict[str, Any], results: dict[str, Any]) -> list[str]:
+        """Extract unique malware signatures (verdicts) and web categories from VirusTotal payload."""
         unique_verdicts: set[str] = set()
-        if not isinstance(results, dict):
-            return []
+        
+        # 1. Extract from attributes.categories map (dict of { "vendor": "category" })
+        categories_dict = attributes.get("categories", {})
+        if isinstance(categories_dict, dict):
+            for cat_val in categories_dict.values():
+                if isinstance(cat_val, str) and cat_val.strip():
+                    unique_verdicts.add(cat_val.strip())
 
-        for engine_meta in results.values():
-            if not isinstance(engine_meta, dict):
-                continue
-            category = engine_meta.get("category")
-            # Only take the 'result' field value (specific malware signature like Phishing, Trojan, etc.)
-            verdict = engine_meta.get("result")
-            if category in ("malicious", "suspicious") and verdict:
-                unique_verdicts.add(str(verdict))
+        # 2. Extract from results (AV engine verdicts)
+        if isinstance(results, dict):
+            for engine_meta in results.values():
+                if not isinstance(engine_meta, dict):
+                    continue
+                category = engine_meta.get("category")
+                verdict = engine_meta.get("result")
+                if category in ("malicious", "suspicious") and verdict:
+                    unique_verdicts.add(str(verdict))
 
         return list(unique_verdicts)
 

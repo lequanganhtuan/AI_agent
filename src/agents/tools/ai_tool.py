@@ -22,9 +22,21 @@ class AITool(BaseTool):
     def __init__(self):
         pass
 
-    def _execute(self, state: URLAnalysisState) -> Any:
+    async def _execute(self, state: URLAnalysisState) -> Any:
         context = build_context_from_state(state)
         
+        # Fast local dev mode check: bypass Gemini LLM call if SKIP_LLM_DEV is set
+        if os.environ.get("SKIP_LLM_DEV", "").lower() in ("true", "1"):
+            logger.info("[AITool] SKIP_LLM_DEV is enabled. Returning fast local AI result mock.")
+            from src.analyzers.url.ai_content_analysis.models import AIAnalysisResult
+            return AIAnalysisResult(
+                summary="Phân tích mô phỏng cho môi trường local dev (Bỏ qua Gemini LLM).",
+                threat_indicators=["Mô phỏng rủi ro"],
+                risk_score=75,
+                confidence_score=0.9,
+                analysis_details="Fast local dev mode bypass for Gemini LLM."
+            )
+
         # Determine the key to locate cached HTML content
         cache_key = state.analysis.validation.cache_key if state.analysis.validation else None
         html = None
@@ -48,14 +60,15 @@ class AITool(BaseTool):
         orchestrator = AIContentAnalysisOrchestrator()
 
         try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-            
-        if loop and loop.is_running():
-            from .base import global_executor
-            future = global_executor.submit(lambda: asyncio.run(orchestrator.analyze(context, html)))
-            mutated_context = future.result()
-        else:
-            mutated_context = asyncio.run(orchestrator.analyze(context, html))            
-        return mutated_context.ai
+            mutated_context = await orchestrator.analyze(context, html)
+            return mutated_context.ai
+        except Exception as err:
+            logger.warning(f"[AITool] LLM Call failed ({str(err)}). Returning fallback AI analysis result.")
+            from src.analyzers.url.ai_content_analysis.models import AIAnalysisResult
+            return AIAnalysisResult(
+                summary="Không thể phân tích bằng Gemini (Hết quota hoặc lỗi kết nối).",
+                threat_indicators=["Gemini Quota Limited"],
+                risk_score=50,
+                confidence_score=0.5,
+                analysis_details=f"Fallback trigger: {str(err)}"
+            )

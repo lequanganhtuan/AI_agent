@@ -3,7 +3,7 @@ from src.agents.state import URLAnalysisState, NodeName
 
 logger = logging.getLogger(__name__)
 
-def merge_node(state: URLAnalysisState) -> URLAnalysisState:
+async def merge_node(state: URLAnalysisState) -> URLAnalysisState:
     """Administrative sync node that runs after Static and Threat nodes complete."""
     logger.info("Executing merge_node (synchronization point)")
     state.workflow.current_node = NodeName.MERGE

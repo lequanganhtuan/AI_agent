@@ -80,13 +80,14 @@ class FirestoreRepository(BaseRepository):
     async def get_recent_reports(
         self,
         limit: int = 20,
+        offset: int = 0,
         search: Optional[str] = None,
         verdict: Optional[str] = None,
         risk: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Queries Firestore for recent scan records matching criteria.
         
-        Applies server-side filtering logic for risk, verdict, and limit (when local search is not set).
+        Applies server-side filtering logic for risk, verdict, offset, and limit.
         """
         try:
             query = self.client.collection(self.collection_name)
@@ -101,7 +102,10 @@ class FirestoreRepository(BaseRepository):
             # Order by timestamp descending
             query = query.order_by("scanned_at", direction=Query.DESCENDING)
             
-            # Critical Performance Improvement: Apply limit directly on database queries when local search filter is not used
+            if offset > 0:
+                query = query.offset(offset)
+
+            # Apply limit directly on database query when local search filter is not used
             if not search:
                 query = query.limit(limit)
             

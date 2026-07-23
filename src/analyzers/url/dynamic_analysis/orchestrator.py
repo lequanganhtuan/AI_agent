@@ -62,8 +62,28 @@ class DynamicAnalysisOrchestrator:
         # 1. Scraping using the multi-provider client (Round-Robin & Concurrency-controlled)
         try:
             start_time = time.perf_counter()
-            scrape_res = await self.scraper_client.scrape(normalized_url)
-            load_time_ms = (time.perf_counter() - start_time) * 1000
+            if normalized_url.startswith("file://"):
+                from urllib.request import url2pathname
+                raw_file_path = normalized_url[7:]
+                # Fix Windows leading slash if present, e.g., /D:/... -> D:/...
+                if raw_file_path.startswith("/") and len(raw_file_path) > 2 and raw_file_path[2] == ":":
+                    raw_file_path = raw_file_path[1:]
+                local_path = url2pathname(raw_file_path)
+                if os.path.exists(local_path):
+                    with open(local_path, "r", encoding="utf-8", errors="ignore") as f:
+                        html_content = f.read()
+                    scrape_res = {
+                        "html": html_content,
+                        "status_code": 200,
+                        "screenshot": b"",
+                        "final_url": normalized_url
+                    }
+                    load_time_ms = (time.perf_counter() - start_time) * 1000
+                else:
+                    raise FileNotFoundError(f"Local test file not found: {local_path}")
+            else:
+                scrape_res = await self.scraper_client.scrape(normalized_url)
+                load_time_ms = (time.perf_counter() - start_time) * 1000
             logger.info("[DynamicAnalysisOrchestrator] Scraper API latency: %.2f ms", load_time_ms)
         except Exception as e:
             logger.error(f"[DynamicAnalysisOrchestrator] Scraping failed for {normalized_url}: {str(e)}")
@@ -79,28 +99,20 @@ class DynamicAnalysisOrchestrator:
         safe_cache_key = cache_key.replace(":", "_")
 
         # 2. Upload screenshot to Firebase Storage if available
-        screenshot_path = None
+        screenshot_path = getattr(context.dynamic, "screenshot_path", None) if context.dynamic else None
         screenshot_bytes = scrape_res.get("screenshot", b"")
         
-        # Fallback to WordPress mshots if Scraping API returned no screenshot (due to free plan limits)
-        if not screenshot_bytes:
-            logger.info("[DynamicAnalysisOrchestrator] Scraping API returned no screenshot. Trying fallback WordPress mshots API...")
+        # Fallback to WordPress mshots if Scraping API returned no screenshot and no early screenshot exists
+        if not screenshot_bytes and not screenshot_path:
+            logger.info("[DynamicAnalysisOrchestrator] Scraping API returned no screenshot. Assigning non-blocking WordPress mshots URL fallback...")
             try:
                 import urllib.parse
-                import httpx
-                encoded_url = urllib.parse.quote(normalized_url)
+                encoded_url = urllib.parse.quote(normalized_url, safe="")
                 mshots_url = f"https://s0.wp.com/mshots/v1/{encoded_url}?w=1024"
-                
-                limits = httpx.Limits(max_keepalive_connections=0, max_connections=5)
-                async with httpx.AsyncClient(timeout=20.0, limits=limits) as client:
-                    mshots_res = await client.get(mshots_url, follow_redirects=True)
-                    if mshots_res.status_code == 200:
-                        # Check length to verify it's a valid image
-                        if len(mshots_res.content) > 1000:
-                            screenshot_bytes = mshots_res.content
-                            logger.info("[DynamicAnalysisOrchestrator] Successfully fetched fallback screenshot from WordPress mshots API.")
+                screenshot_path = mshots_url
+                logger.info(f"[WordPress mshots] Assigned non-blocking mshots URL: {mshots_url}")
             except Exception as mshot_err:
-                logger.warning(f"[DynamicAnalysisOrchestrator] WordPress mshots fallback failed: {str(mshot_err)}")
+                logger.warning(f"[DynamicAnalysisOrchestrator] WordPress mshots URL generation failed: {str(mshot_err)}")
 
         if screenshot_bytes:
             try:

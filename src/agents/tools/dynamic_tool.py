@@ -21,21 +21,7 @@ class DynamicTool(BaseTool):
     def __init__(self):
         pass
 
-    def _execute(self, state: URLAnalysisState) -> Any:
+    async def _execute(self, state: URLAnalysisState) -> Any:
         context = build_context_from_state(state)
-        
         orchestrator = DynamicAnalysisOrchestrator()
-
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-            
-        if loop and loop.is_running():
-            from .base import global_executor
-            future = global_executor.submit(lambda: asyncio.run(orchestrator.analyze(context)))
-            res = future.result()
-        else:
-            res = asyncio.run(orchestrator.analyze(context))
-            
-        return res
+        return await orchestrator.analyze(context)

@@ -63,6 +63,12 @@ def merge_telemetry(left: Any, right: Any) -> Any:
     if not right: return left
     if right.node_timings:
         left.node_timings.update(right.node_timings)
+    if right.provider_requests:
+        for provider, count in right.provider_requests.items():
+            left.provider_requests[provider] = left.provider_requests.get(provider, 0) + count
+    if right.token_usage:
+        for key, val in right.token_usage.items():
+            left.token_usage[key] = left.token_usage.get(key, 0) + val
     for err in right.errors:
         if err not in left.errors:
             left.errors.append(err)

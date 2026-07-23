@@ -73,6 +73,7 @@ class AIAnalysisService:
             signals=signals,
             risk=risk,
             system_prompt=prompt_request.system_prompt,
-            user_prompt=prompt_request.user_prompt
+            user_prompt=prompt_request.user_prompt,
+            token_usage=getattr(prompt_request, "token_usage", {})
         )
 

@@ -122,149 +122,142 @@ class MultiScraperClient:
     # Call specific API
     async def _execute_scrape(self, provider_name: str, config: dict, target_url: str) -> dict[str, Any]:
         """Executes the HTTP scraping request for a specific provider."""
-        async with httpx.AsyncClient(timeout=45.0) as client:
-            try:
-                if provider_name == "scrape_do":
-                    params = {
-                        "token": config["token"],
-                        "url": target_url,
-                        "screenshot": "true",
-                        "render": "true",
-                        "returnJSON": "true"
-                    }
-                    response = await client.get(config["endpoint"], params=params)
+        from src.core.http_client import get_http_client
+        client = get_http_client()
+        try:
+            if provider_name == "scrape_do":
+                params = {
+                    "token": config["token"],
+                    "url": target_url,
+                    "screenshot": "true",
+                    "render": "true",
+                    "returnJSON": "true"
+                }
+                response = await client.get(config["endpoint"], params=params)
 
-                    if response.status_code in (403, 429):
-                        body_preview = response.text[:ERROR_BODY_PREVIEW_LIMIT]
-                        raise QuotaExceededError(
-                            f"Scrape.do quota limit exceeded (HTTP {response.status_code}): {body_preview}"
-                        )
-                    elif response.status_code != 200:
-                        body_preview = response.text[:ERROR_BODY_PREVIEW_LIMIT]
-                        raise ScraperAPIError(
-                            f"Scrape.do returned HTTP {response.status_code}: {body_preview}"
-                        )
+                if response.status_code in (403, 429):
+                    body_preview = response.text[:ERROR_BODY_PREVIEW_LIMIT]
+                    raise QuotaExceededError(
+                        f"Scrape.do quota limit exceeded (HTTP {response.status_code}): {body_preview}"
+                    )
+                elif response.status_code != 200:
+                    body_preview = response.text[:ERROR_BODY_PREVIEW_LIMIT]
+                    raise ScraperAPIError(
+                        f"Scrape.do returned HTTP {response.status_code}: {body_preview}"
+                    )
 
-                    try:
-                        res_json = response.json()
-                    except Exception as e:
-                        body_preview = response.text[:ERROR_BODY_PREVIEW_LIMIT]
-                        raise ScraperAPIError(
-                            f"Scrape.do returned invalid/non-JSON response: {str(e)} | body: '{body_preview}'"
-                        )
+                try:
+                    res_json = response.json()
+                except Exception as e:
+                    body_preview = response.text[:ERROR_BODY_PREVIEW_LIMIT]
+                    raise ScraperAPIError(
+                        f"Scrape.do returned invalid/non-JSON response: {str(e)} | body: '{body_preview}'"
+                    )
 
-                    html = res_json.get("content", "")
-                    if not html:
-                        raise ScraperAPIError(
-                            f"Scrape.do returned an empty 'content' field. "
-                            f"Raw response: {str(res_json)[:ERROR_BODY_PREVIEW_LIMIT]}"
-                        )
+                html = res_json.get("content", "")
+                if not html:
+                    raise ScraperAPIError(
+                        f"Scrape.do returned an empty 'content' field. "
+                        f"Raw response: {str(res_json)[:ERROR_BODY_PREVIEW_LIMIT]}"
+                    )
 
+                screenshot_bytes = b""
+                screenshots = res_json.get("screenShots", [])
+                if screenshots and isinstance(screenshots, list):
+                    first_screenshot = screenshots[0]
+                    if isinstance(first_screenshot, dict):
+                        screenshot_b64 = first_screenshot.get("image", "")
+                        if screenshot_b64:
+                            try:
+                                screenshot_bytes = base64.b64decode(screenshot_b64)
+                            except Exception as e:
+                                logger.warning(f"[Scrape.do] Failed to decode base64 screenshot: {str(e)}")
+
+                return {
+                    "html": html,
+                    "screenshot": screenshot_bytes,
+                    "redirects": [target_url]  # Default hop
+                }
+
+            elif provider_name == "scraper_api":
+                params = {
+                    "api_key": config["token"],
+                    "url": target_url,
+                    "render": "true"
+                }
+                response = await client.get(config["endpoint"], params=params)
+
+                if response.status_code in (403, 429):
+                    body_preview = response.text[:ERROR_BODY_PREVIEW_LIMIT]
+                    raise QuotaExceededError(
+                        f"ScraperAPI quota limit or rate limit exceeded (HTTP {response.status_code}): {body_preview}"
+                    )
+                elif response.status_code != 200:
+                    body_preview = response.text[:ERROR_BODY_PREVIEW_LIMIT]
+                    raise ScraperAPIError(
+                        f"ScraperAPI returned HTTP {response.status_code}: {body_preview}"
+                    )
+
+                html = response.text
+                final_url = response.headers.get("x-final-url", target_url)
+                screenshot_bytes = b""
+                
+                return {
+                    "html": html,
+                    "screenshot": screenshot_bytes,
+                    "redirects": [target_url, final_url] if final_url != target_url else [target_url]
+                }
+
+            elif provider_name == "scraping_ant":
+                params = {
+                    "api_key": config["token"],
+                    "url": target_url,
+                    "browser": "true"
+                }
+                response = await client.get(config["endpoint"], params=params)
+
+                if response.status_code in (403, 429):
+                    body_preview = response.text[:ERROR_BODY_PREVIEW_LIMIT]
+                    raise QuotaExceededError(
+                        f"ScrapingAnt quota limit exceeded (HTTP {response.status_code}): {body_preview}"
+                    )
+                elif response.status_code != 200:
+                    body_preview = response.text[:ERROR_BODY_PREVIEW_LIMIT]
+                    raise ScraperAPIError(
+                        f"ScrapingAnt returned HTTP {response.status_code}: {body_preview}"
+                    )
+
+                try:
+                    res_json = response.json()
+                except Exception as e:
+                    body_preview = response.text[:ERROR_BODY_PREVIEW_LIMIT]
+                    raise ScraperAPIError(
+                        f"ScrapingAnt returned invalid/non-JSON response: {str(e)} | body: '{body_preview}'"
+                    )
+
+                html = res_json.get("html", "")
+                if not html:
+                    raise ScraperAPIError(
+                        f"ScrapingAnt returned an empty 'html' field. "
+                        f"Raw response: {str(res_json)[:ERROR_BODY_PREVIEW_LIMIT]}"
+                    )
+
+                screenshot_b64 = res_json.get("screenshot", "")
+                try:
+                    screenshot_bytes = base64.b64decode(screenshot_b64) if screenshot_b64 else b""
+                except Exception as e:
+                    logger.warning(f"[ScrapingAnt] Failed to decode base64 screenshot: {str(e)}")
                     screenshot_bytes = b""
-                    screenshots = res_json.get("screenShots", [])
-                    if screenshots and isinstance(screenshots, list):
-                        first_screenshot = screenshots[0]
-                        if isinstance(first_screenshot, dict):
-                            screenshot_b64 = first_screenshot.get("image", "")
-                            if screenshot_b64:
-                                try:
-                                    screenshot_bytes = base64.b64decode(screenshot_b64)
-                                except Exception as e:
-                                    logger.warning(f"[Scrape.do] Failed to decode base64 screenshot: {str(e)}")
 
-                    return {
-                        "html": html,
-                        "screenshot": screenshot_bytes,
-                        "redirects": [target_url]  # Default hop
-                    }
+                return {
+                    "html": html,
+                    "screenshot": screenshot_bytes,
+                    "redirects": [target_url]
+                }
 
-                elif provider_name == "scraper_api":
-                    params = {
-                        "api_key": config["token"],
-                        "url": target_url,
-                        "render": "true"
-                    }
-                    response = await client.get(config["endpoint"], params=params)
-
-                    if response.status_code in (403, 429):
-                        body_preview = response.text[:ERROR_BODY_PREVIEW_LIMIT]
-                        raise QuotaExceededError(
-                            f"ScraperAPI quota limit or rate limit exceeded (HTTP {response.status_code}): {body_preview}"
-                        )
-                    elif response.status_code != 200:
-                        body_preview = response.text[:ERROR_BODY_PREVIEW_LIMIT]
-                        raise ScraperAPIError(
-                            f"ScraperAPI returned HTTP {response.status_code}: {body_preview}"
-                        )
-
-                    html = response.text
-                    # ScraperAPI returns headers with redirect information
-                    final_url = response.headers.get("x-final-url", target_url)
-                    screenshot_bytes = b""
-                    
-                    return {
-                        "html": html,
-                        "screenshot": screenshot_bytes,
-                        "redirects": [target_url, final_url] if final_url != target_url else [target_url]
-                    }
-
-                elif provider_name == "scraping_ant":
-                    # ScrapingAnt JS rendering API request
-                    params = {
-                        "api_key": config["token"],
-                        "url": target_url,
-                        "browser": "true"
-                    }
-                    response = await client.get(config["endpoint"], params=params)
-
-                    if response.status_code in (403, 429):
-                        body_preview = response.text[:ERROR_BODY_PREVIEW_LIMIT]
-                        raise QuotaExceededError(
-                            f"ScrapingAnt quota limit exceeded (HTTP {response.status_code}): {body_preview}"
-                        )
-                    elif response.status_code != 200:
-                        body_preview = response.text[:ERROR_BODY_PREVIEW_LIMIT]
-                        raise ScraperAPIError(
-                            f"ScrapingAnt returned HTTP {response.status_code}: {body_preview}"
-                        )
-
-                    # ScrapingAnt JSON response format contains the HTML and screenshot details.
-                    # An empty/invalid body (or valid JSON with no "html" field) must NOT be
-                    # treated as a successful scrape — raise so the caller can fail over
-                    # to another provider instead of silently returning empty content.
-                    try:
-                        res_json = response.json()
-                    except Exception as e:
-                        body_preview = response.text[:ERROR_BODY_PREVIEW_LIMIT]
-                        raise ScraperAPIError(
-                            f"ScrapingAnt returned invalid/non-JSON response: {str(e)} | body: '{body_preview}'"
-                        )
-
-                    html = res_json.get("html", "")
-                    if not html:
-                        raise ScraperAPIError(
-                            f"ScrapingAnt returned an empty 'html' field. "
-                            f"Raw response: {str(res_json)[:ERROR_BODY_PREVIEW_LIMIT]}"
-                        )
-
-                    # ScrapingAnt can return screenshot as base64
-                    screenshot_b64 = res_json.get("screenshot", "")
-                    try:
-                        screenshot_bytes = base64.b64decode(screenshot_b64) if screenshot_b64 else b""
-                    except Exception as e:
-                        # Don't fail the whole scrape just because the screenshot couldn't be decoded
-                        logger.warning(f"[ScrapingAnt] Failed to decode base64 screenshot: {str(e)}")
-                        screenshot_bytes = b""
-
-                    return {
-                        "html": html,
-                        "screenshot": screenshot_bytes,
-                        "redirects": [target_url]
-                    }
-
-            except httpx.RequestError as e:
-                raise ScraperAPIError(f"Network error communicating with {provider_name}: {str(e)}")
-            except Exception as e:
-                if isinstance(e, ScraperAPIError):
-                    raise e
-                raise ScraperAPIError(f"Unexpected error in provider {provider_name}: {str(e)}")
+        except httpx.RequestError as e:
+            raise ScraperAPIError(f"Network error communicating with {provider_name}: {str(e)}")
+        except Exception as e:
+            if isinstance(e, ScraperAPIError):
+                raise e
+            raise ScraperAPIError(f"Unexpected error in provider {provider_name}: {str(e)}")

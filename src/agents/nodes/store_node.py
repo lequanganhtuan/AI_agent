@@ -1,12 +1,12 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from src.agents.state import URLAnalysisState, NodeName, ExecutionStatus, AgentError
 from src.agents.tools import tool_registry
 from src.agents.error import error_policy, ErrorAction
 
 logger = logging.getLogger(__name__)
 
-def store_node(state: URLAnalysisState) -> URLAnalysisState:
+async def store_node(state: URLAnalysisState) -> URLAnalysisState:
     if state.control.should_stop:
         return state
 
@@ -15,14 +15,14 @@ def store_node(state: URLAnalysisState) -> URLAnalysisState:
     state.workflow.visited_nodes.append(NodeName.STORE)
     
     tool = tool_registry.get(NodeName.STORE)
-    result = tool.run(state)
+    result = await tool.run(state)
     
     state.telemetry.node_timings[str(NodeName.STORE)] = result.duration
     
     if result.success:
         state.workflow.completed_nodes.append(NodeName.STORE)
         state.workflow.status = ExecutionStatus.SUCCESS
-        state.execution.finished_at = datetime.utcnow()
+        state.execution.finished_at = datetime.now(timezone.utc)
         if state.execution.started_at:
             delta = state.execution.finished_at - state.execution.started_at
             state.execution.duration = delta.total_seconds()

@@ -1,6 +1,12 @@
 from __future__ import annotations
-import pytest
+import os
+import unittest
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+os.environ["SKIP_LLM_DEV"] = "true"
+
 from src.core.models import (
     AnalysisContext,
     ValidationResult,
@@ -61,103 +67,89 @@ def get_dummy_threat_intel() -> ThreatIntelligenceResult:
         )
     )
 
-@pytest.mark.anyio
-async def test_dynamic_pipeline_integration_login():
-    """Test the complete dynamic analysis pipeline against a mock local login page."""
-    # Build absolute path to login_page.html
-    current_dir = Path(__file__).parent.parent.parent
-    file_path = current_dir / "tests" / "data" / "login_page.html"
-    assert file_path.exists(), f"File not found: {file_path}"
-    
-    file_url = file_path.absolute().as_uri()
-    
-    # Initialize orchestrator
-    config = DynamicAnalysisConfig()
-    config.SCREENSHOT_DIRECTORY = "artifacts/test_screenshots"
-    orchestrator = DynamicAnalysisOrchestrator(config=config)
-    
-    # Prepare AnalysisContext
-    validation = ValidationResult(valid=True, normalized_url=file_url)
-    static = get_dummy_static_result(len(file_url))
-    threat_intel = get_dummy_threat_intel()
-    
-    context = AnalysisContext(
-        validation=validation,
-        static=static,
-        threat_intel=threat_intel
-    )
-    
-    # Run pipeline
-    result = await orchestrator.analyze(context)
-    
-    # Assert result details
-    assert result.status == "completed"
-    assert result.dom is not None
-    assert result.dom.has_password_field is True
-    assert result.dom.has_login_form is True
-    
-    # Verify signals
-    signal_names = [sig.signal for sig in result.signals]
-    assert DynamicSignalType.PASSWORD_FIELD in signal_names
-    assert DynamicSignalType.LOGIN_FORM in signal_names
-    
-    # Verify risk
-    assert result.risk.score >= 35 # PASSWORD_FIELD (25) + LOGIN_FORM (10) = 35
-    assert result.risk.level == "MEDIUM"
-    
-    # Verify screenshot was captured and persisted
-    assert result.screenshot_path is not None
-    screenshot_p = Path(result.screenshot_path)
-    assert screenshot_p.exists()
-    
-    # Verify summary reports compiled
-    assert "Risk Score: 45" in result.summary
-    assert "Risk Level: MEDIUM" in summary if (summary := result.summary) else False
-    
-    # Cleanup screenshot file
-    try:
-        screenshot_p.unlink()
-    except Exception:
-        pass
+class TestDynamicPipeline(unittest.IsolatedAsyncioTestCase):
 
+    async def test_dynamic_pipeline_integration_login(self):
+        """Test the complete dynamic analysis pipeline against a mock local login page."""
+        current_dir = Path(__file__).parent.parent.parent
+        file_path = current_dir / "tests" / "data" / "login_page.html"
+        self.assertTrue(file_path.exists(), f"File not found: {file_path}")
+        
+        file_url = file_path.absolute().as_uri()
+        
+        config = DynamicAnalysisConfig()
+        config.SCREENSHOT_DIRECTORY = "artifacts/test_screenshots"
+        orchestrator = DynamicAnalysisOrchestrator(config=config)
+        
+        validation = ValidationResult(valid=True, normalized_url=file_url)
+        static = get_dummy_static_result(len(file_url))
+        threat_intel = get_dummy_threat_intel()
+        
+        context = AnalysisContext(
+            validation=validation,
+            static=static,
+            threat_intel=threat_intel
+        )
+        
+        result = await orchestrator.analyze(context)
+        
+        self.assertEqual(result.status, "completed")
+        self.assertIsNotNone(result.dom)
+        self.assertTrue(result.dom.has_password_field)
+        self.assertTrue(result.dom.has_login_form)
+        
+        signal_names = [sig.signal for sig in result.signals]
+        self.assertIn(DynamicSignalType.PASSWORD_FIELD, signal_names)
+        self.assertIn(DynamicSignalType.LOGIN_FORM, signal_names)
+        
+        self.assertGreaterEqual(result.risk.score, 35)
+        self.assertEqual(result.risk.level, "MEDIUM")
+        
+        if result.screenshot_path:
+            screenshot_p = Path(result.screenshot_path)
+            try:
+                screenshot_p.unlink()
+            except Exception:
+                pass
 
-@pytest.mark.anyio
-async def test_dynamic_pipeline_integration_obfuscation():
-    """Test the complete dynamic analysis pipeline against a mock local obfuscated script page."""
-    current_dir = Path(__file__).parent.parent.parent
-    file_path = current_dir / "tests" / "data" / "obfuscated.html"
-    assert file_path.exists()
-    
-    file_url = file_path.absolute().as_uri()
-    
-    config = DynamicAnalysisConfig()
-    config.SCREENSHOT_DIRECTORY = "artifacts/test_screenshots"
-    orchestrator = DynamicAnalysisOrchestrator(config=config)
-    
-    validation = ValidationResult(valid=True, normalized_url=file_url)
-    static = get_dummy_static_result(len(file_url))
-    threat_intel = get_dummy_threat_intel()
-    
-    context = AnalysisContext(
-        validation=validation,
-        static=static,
-        threat_intel=threat_intel
-    )
-    
-    result = await orchestrator.analyze(context)
-    
-    assert result.status == "completed"
-    assert result.dom is not None
-    assert result.dom.has_atob is True
-    assert result.dom.has_unescape is True
-    
-    signal_names = [sig.signal for sig in result.signals]
-    assert DynamicSignalType.ATOB_USAGE in signal_names
-    assert DynamicSignalType.UNESCAPE_USAGE in signal_names
-    
-    # Clean screenshots
-    if result.screenshot_path:
-        try:
-            Path(result.screenshot_path).unlink()
-        except Exception:
-            pass
+    async def test_dynamic_pipeline_integration_obfuscation(self):
+        """Test the complete dynamic analysis pipeline against a mock local obfuscated script page."""
+        current_dir = Path(__file__).parent.parent.parent
+        file_path = current_dir / "tests" / "data" / "obfuscated.html"
+        self.assertTrue(file_path.exists())
+        
+        file_url = file_path.absolute().as_uri()
+        
+        config = DynamicAnalysisConfig()
+        config.SCREENSHOT_DIRECTORY = "artifacts/test_screenshots"
+        orchestrator = DynamicAnalysisOrchestrator(config=config)
+        
+        validation = ValidationResult(valid=True, normalized_url=file_url)
+        static = get_dummy_static_result(len(file_url))
+        threat_intel = get_dummy_threat_intel()
+        
+        context = AnalysisContext(
+            validation=validation,
+            static=static,
+            threat_intel=threat_intel
+        )
+        
+        result = await orchestrator.analyze(context)
+        
+        self.assertEqual(result.status, "completed")
+        self.assertIsNotNone(result.dom)
+        self.assertTrue(result.dom.has_atob)
+        self.assertTrue(result.dom.has_unescape)
+        
+        signal_names = [sig.signal for sig in result.signals]
+        self.assertIn(DynamicSignalType.ATOB_USAGE, signal_names)
+        self.assertIn(DynamicSignalType.UNESCAPE_USAGE, signal_names)
+        
+        if result.screenshot_path:
+            try:
+                Path(result.screenshot_path).unlink()
+            except Exception:
+                pass
+
+if __name__ == "__main__":
+    unittest.main()

@@ -294,6 +294,22 @@ class Settings(BaseSettings):
         raw_domains = re.split(r'[,\n]', self.safe_whitelist_domains)
         return {d.strip().lower() for d in raw_domains if d.strip() and not d.strip().startswith("#")}
 
+    def is_whitelisted(self, url: str) -> bool:
+        """Checks if a URL's domain or root domain is in the safe whitelist set."""
+        if not url:
+            return False
+        from urllib.parse import urlparse
+        try:
+            url_str = url if url.startswith(("http://", "https://")) else f"https://{url}"
+            domain_lower = urlparse(url_str).netloc.lower().replace("www.", "")
+            parts = domain_lower.split(".")
+            root_domain = ".".join(parts[-2:]) if len(parts) >= 2 else domain_lower
+            whitelist = self.whitelist_domains_set
+            return root_domain in whitelist or domain_lower in whitelist
+        except Exception:
+            return False
+
+
 
 settings = Settings()
 

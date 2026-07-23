@@ -1,12 +1,12 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from src.agents.state import URLAnalysisState, NodeName, ExecutionStatus, AgentError
 from src.agents.tools import tool_registry
 from src.agents.error import error_policy, ErrorAction
 
 logger = logging.getLogger(__name__)
 
-def validate_node(state: URLAnalysisState) -> URLAnalysisState:
+async def validate_node(state: URLAnalysisState) -> URLAnalysisState:
     logger.info("Executing validate_node")
     state.workflow.current_node = NodeName.VALIDATE
     state.workflow.visited_nodes.append(NodeName.VALIDATE)
@@ -21,7 +21,7 @@ def validate_node(state: URLAnalysisState) -> URLAnalysisState:
         return state
 
     tool = tool_registry.get(NodeName.VALIDATE)
-    result = tool.run(state)
+    result = await tool.run(state)
     
     state.telemetry.node_timings[str(NodeName.VALIDATE)] = result.duration
     
@@ -45,7 +45,7 @@ def validate_node(state: URLAnalysisState) -> URLAnalysisState:
                 tool="ValidateTool",
                 message=err_msg,
                 exception_type="ValidationError",
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 retryable=False,
                 error_type=decision.error_type,
                 action_taken=str(decision.action)
@@ -65,7 +65,7 @@ def validate_node(state: URLAnalysisState) -> URLAnalysisState:
             tool="ValidateTool",
             message=err_msg,
             exception_type="ToolExecutionError",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             retryable=result.retryable,
             error_type=decision.error_type,
             action_taken=str(decision.action)

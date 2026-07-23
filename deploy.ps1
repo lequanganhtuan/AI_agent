@@ -1,5 +1,6 @@
 param(
-    [string]$ProjectId = "second-core-501608-a5",
+    # Production Project ID: "vtrust-vn" (Dev Test Project: "second-core-501608-a5")
+    [string]$ProjectId = "vtrust-vn",
     [string]$Region = "asia-southeast1"
 )
 

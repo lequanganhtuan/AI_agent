@@ -1,7 +1,11 @@
+import os
 import asyncio
 import json
 import logging
 from unittest.mock import AsyncMock, patch
+from dotenv import load_dotenv
+
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 from src.analyzers.url.preprocessing.url_analyzer import URLAnalyzer
 from src.analyzers.url.threat_intelligence.orchestrator import ThreatIntelOrchestrator
@@ -220,14 +224,16 @@ async def run_scenario_7_full_compromise():
 
 async def main():
     logger.info("Starting Phase 3 Threat Intel Workflow Scenario Tests...")
-    await run_scenario_1_clean()
-    await run_scenario_2_blacklist()
-    await run_scenario_3_behavioral()
-    await run_scenario_4_reputation()
-    await run_scenario_5_partial_failure()
-    await run_scenario_6_cache_hit()
-    await run_scenario_7_full_compromise()
-    logger.info("All 7 scenarios successfully tested and verified!")
+    from src.core.security.provider_limiter import provider_limiter
+    with patch.object(provider_limiter, "before_execute", AsyncMock(return_value=True)):
+        await run_scenario_1_clean()
+        await run_scenario_2_blacklist()
+        await run_scenario_3_behavioral()
+        await run_scenario_4_reputation()
+        await run_scenario_5_partial_failure()
+        await run_scenario_6_cache_hit()
+        await run_scenario_7_full_compromise()
+        logger.info("All 7 scenarios successfully tested and verified!")
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -1,12 +1,12 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from src.agents.state import URLAnalysisState, NodeName, ExecutionStatus, AgentError
 from src.agents.tools import tool_registry
 from src.agents.error import error_policy, ErrorAction
 
 logger = logging.getLogger(__name__)
 
-def threat_node(state: URLAnalysisState) -> URLAnalysisState:
+async def threat_node(state: URLAnalysisState) -> URLAnalysisState:
     if state.control.should_stop:
         return state
 
@@ -15,13 +15,20 @@ def threat_node(state: URLAnalysisState) -> URLAnalysisState:
     state.workflow.visited_nodes.append(NodeName.THREAT)
     
     tool = tool_registry.get(NodeName.THREAT)
-    result = tool.run(state)
+    result = await tool.run(state)
     
     state.telemetry.node_timings[str(NodeName.THREAT)] = result.duration
     
     if result.success:
         state.analysis.threat_intelligence = result.data
         state.workflow.completed_nodes.append(NodeName.THREAT)
+        
+        # Track provider requests metrics
+        state.telemetry.provider_requests["VirusTotal"] = 1
+        state.telemetry.provider_requests["Google Safe Browsing"] = 1
+        state.telemetry.provider_requests["URLScan"] = 1
+        state.telemetry.provider_requests["URLHaus"] = 1
+        state.telemetry.provider_requests["AbuseIPDB"] = 1
         
         # Update should_skip_dynamic flag if risk level is high or score is high
         if result.data and result.data.risk:

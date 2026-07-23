@@ -64,6 +64,7 @@ class PromptRequest(BaseModel):
     response_schema: Type[BaseModel]
     vision_enabled: bool
     screenshot_base64: Optional[str] = None
+    token_usage: dict[str, int] = Field(default_factory=dict)
 
 
 
@@ -119,6 +120,7 @@ class AIAnalysisResult(BaseModel):
     risk: Optional[AIRisk] = None
     system_prompt: Optional[str] = None
     user_prompt: Optional[str] = None
+    token_usage: dict[str, int] = Field(default_factory=dict)
     error: Optional[str] = None
 
 

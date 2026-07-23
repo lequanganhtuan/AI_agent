@@ -10,6 +10,7 @@ class BaseRepository:
     async def get_recent_reports(
         self,
         limit: int = 20,
+        offset: int = 0,
         search: Optional[str] = None,
         verdict: Optional[str] = None,
         risk: Optional[str] = None

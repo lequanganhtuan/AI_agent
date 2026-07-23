@@ -1,12 +1,12 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from src.agents.state import URLAnalysisState, NodeName, ExecutionStatus, AgentError
 from src.agents.tools import tool_registry
 from src.agents.error import error_policy, ErrorAction
 
 logger = logging.getLogger(__name__)
 
-def dynamic_node(state: URLAnalysisState) -> URLAnalysisState:
+async def dynamic_node(state: URLAnalysisState) -> URLAnalysisState:
     if state.control.should_stop:
         return state
 
@@ -15,7 +15,7 @@ def dynamic_node(state: URLAnalysisState) -> URLAnalysisState:
     state.workflow.visited_nodes.append(NodeName.DYNAMIC)
     
     tool = tool_registry.get(NodeName.DYNAMIC)
-    result = tool.run(state)
+    result = await tool.run(state)
     
     state.telemetry.node_timings[str(NodeName.DYNAMIC)] = result.duration
     
@@ -23,6 +23,7 @@ def dynamic_node(state: URLAnalysisState) -> URLAnalysisState:
         state.analysis.dynamic = result.data
         state.control.should_retry = False
         state.workflow.completed_nodes.append(NodeName.DYNAMIC)
+        state.telemetry.provider_requests["Scraper API"] = 1
     else:
         err_msg = result.error or "Unknown DynamicTool failure"
         decision = error_policy.handle(err_msg, NodeName.DYNAMIC, state.execution.retry_count, result.retryable)
